@@ -1,0 +1,122 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --- BETTER AUTH MODELS (Keep these mostly as-is) ---
+
+model User {
+  id            String    @id
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @default(now()) @updatedAt
+  
+  sessions      Session[]
+  accounts      Account[]
+  
+  // NEW: Relations to your toolkit
+  runs          Run[]
+  portfolios    Portfolio[]
+  stressPacks   StressPack[]
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
+
+  @@map("verification")
+}
+
+// --- FINANCIAL TOOLKIT MODELS (The New Stuff) ---
+
+model Run {
+  id         String   @id @default(uuid())
+  runType    String   // e.g., "vanilla", "tax_compute", "portfolio_price"
+  inputJson  Json     // Native JSONB support
+  outputJson Json
+  resultCsv  String?  @db.Text
+  
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  
+  createdAt  DateTime @default(now())
+
+  @@index([runType])
+  @@index([userId])
+}
+
+model Portfolio {
+  id            String   @id @default(cuid())
+  name          String
+  portfolioJson Json     // Stores the multi-leg definitions
+  
+  userId        String?
+  user          User?    @relation(fields: [userId], references: [id])
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model StressPack {
+  id           String   @id @default(cuid())
+  name         String
+  description  String?
+  tagsJson     Json     // Array of strings
+  scenarioJson Json     // The macro scenario data
+  
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id])
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+}
