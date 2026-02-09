@@ -24,6 +24,7 @@
     "@auth/prisma-adapter": "^2.7.2",
     "@gsap/react": "^2.1.2",
     "@prisma/client": "^6.19.2",
+    "@scalar/api-reference-react": "^0.8.52",
     "@studio-freight/lenis": "^1.0.42",
     "@t3-oss/env-nextjs": "^0.12.0",
     "@tanstack/react-query": "^5.69.0",
