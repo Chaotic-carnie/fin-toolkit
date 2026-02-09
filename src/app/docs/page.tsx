@@ -9,36 +9,29 @@ export default function ApiDocs() {
 
   useEffect(() => {
     setIsMounted(true);
-    
-    // 1. Force enable scrolling for this page
-    document.body.style.overflow = 'auto';
-    document.documentElement.style.overflow = 'auto';
-
-    // 2. Cleanup: Re-lock scrolling when leaving this page (to preserve Dashboard feel)
-    return () => {
-      document.body.style.overflow = 'hidden';
-      document.documentElement.style.overflow = 'hidden';
-    };
   }, []);
 
   if (!isMounted) return null;
 
   return (
-    // Ensure the container is scrollable and takes full height
+    // FIX 1: Removed PortfolioHeader
+    // FIX 2: overflow-y-auto ensures you can scroll if the content gets too long
     <div className="h-screen w-full bg-[#020617] overflow-y-auto">
       <ApiReferenceReact
         configuration={{
           spec: {
-            url: '/api/openapi.json',
+            url: '/api/docs', 
           },
           theme: 'kepler',
           darkMode: true,
-          hideModels: true,
+          hideModels: true, 
           customCss: `
+            /* Fix transparency issues */
             .scalar-card { background: #0B1121 !important; border: 1px solid rgba(255,255,255,0.1) !important; }
-            .scalar-app { background: #020617 !important; color: white !important; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important; }
-            /* Ensure the Scalar sidebar is scrollable too */
-            .sidebar { overflow-y: auto !important; }
+            .scalar-app { background: #020617 !important; color: white !important; }
+            
+            /* Ensure the sidebar matches your dark theme */
+            .sidebar { background: #020617 !important; border-right: 1px solid rgba(255,255,255,0.05) !important; }
           `,
         }}
       />

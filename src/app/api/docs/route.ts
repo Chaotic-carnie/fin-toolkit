@@ -9,6 +9,7 @@ const openApiSpec = {
   },
   servers: [{ url: 'http://localhost:3000', description: 'Local Dev' }],
   paths: {
+    // --- 1. THE PRICER (Your Detailed Version) ---
     '/api/price': {
       post: {
         summary: 'Price an Instrument',
@@ -88,6 +89,80 @@ const openApiSpec = {
         },
       },
     },
+
+    // --- 2. THE PORTFOLIO (Preserved from previous step so Portfolio Page works) ---
+    '/api/analyze': {
+      post: {
+        summary: 'Calculate Portfolio Risk',
+        description: 'Returns Greeks, VaR, and PnL scenarios for a set of option legs.',
+        tags: ['Portfolio'],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  legs: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        id: { type: "string" },
+                        quantity: { type: "number" },
+                        instrument: { type: "string", enum: ["vanilla", "digital", "barrier"] },
+                        active: { type: "boolean" },
+                        params: {
+                          type: "object",
+                          properties: {
+                            asset: { type: "string" },
+                            spot: { type: "number" },
+                            strike: { type: "number" },
+                            vol: { type: "number" },
+                            time_to_expiry: { type: "number" },
+                            risk_free_rate: { type: "number" },
+                            option_type: { type: "string", enum: ["call", "put"] },
+                            dividend_yield: { type: "number" },
+                            barrier: { type: "number" }
+                          },
+                          required: ["spot", "strike", "vol", "time_to_expiry"]
+                        }
+                      },
+                      required: ["quantity", "instrument", "params"]
+                    }
+                  },
+                  simulation: {
+                    type: "object",
+                    properties: {
+                      spotShock: { type: "number", default: 0 },
+                      volShock: { type: "number", default: 0 },
+                      daysPassed: { type: "number", default: 0 }
+                    }
+                  }
+                },
+                required: ["legs"]
+              }
+            }
+          }
+        },
+        responses: {
+          200: {
+            description: "Successful analysis",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    timestamp: { type: "string" },
+                    data: { type: "object" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
   },
   components: {
     schemas: {
