@@ -14,9 +14,8 @@ export default function ApiDocs() {
   if (!isMounted) return null;
 
   return (
-    // FIX 1: Removed PortfolioHeader
-    // FIX 2: overflow-y-auto ensures you can scroll if the content gets too long
-    <div className="h-screen w-full bg-[#020617] overflow-y-auto">
+    // FIX: Added 'pt-20' to push content below the fixed Navbar
+    <div className="h-screen w-full bg-[#020617] overflow-y-auto pt-20">
       <ApiReferenceReact
         configuration={{
           spec: {
@@ -32,6 +31,9 @@ export default function ApiDocs() {
             
             /* Ensure the sidebar matches your dark theme */
             .sidebar { background: #020617 !important; border-right: 1px solid rgba(255,255,255,0.05) !important; }
+            
+            /* Optional: Adjust internal padding if Scalar feels too cramped */
+            .section-container { padding-top: 2rem !important; }
           `,
         }}
       />

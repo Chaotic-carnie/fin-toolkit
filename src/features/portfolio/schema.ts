@@ -1,45 +1,51 @@
 import { z } from "zod";
-import { InstrumentTypeSchema, MethodSchema, PricingParamsSchema } from "@/features/pricing/schema";
 
-// --- 1. The Building Block: A Trade/Leg ---
-export const PortfolioLegSchema = z.object({
-  id: z.string().uuid(),
-  name: z.string().optional(),
+// --- 1. Human-Readable Params (Matches Frontend & Curl) ---
+export const PortfolioParamsSchema = z.object({
+  asset: z.string().default("BTC"),
+  spot: z.number(),
+  strike: z.number().optional(), // Optional because some strategies (like Spot) don't need it
+  vol: z.number(),
+  time_to_expiry: z.number(),
+  risk_free_rate: z.number().default(0.05),
+  dividend_yield: z.number().optional().default(0),
+  option_type: z.enum(["call", "put"]).optional(),
   
-  // The "Priceable" core
-  instrument: InstrumentTypeSchema,
-  method: MethodSchema,
-  params: PricingParamsSchema, 
-  
-  // Portfolio Settings
-  quantity: z.number().default(1),
-  active: z.boolean().default(true), // Included in calculation?
-  
-  // "Strategy Awareness" (For the future AI)
-  groupId: z.string().optional(), // Links legs together (e.g. Iron Condor)
-  strategyType: z.string().optional(), // e.g., "vertical_spread"
+  // Exotics support
+  payout: z.number().optional(),
+  barrier: z.number().optional(),
+  barrier_type: z.enum(["up-in", "up-out", "down-in", "down-out"]).optional(),
 });
 
-// --- 2. The Group/Strategy Wrapper ---
-// This allows us to treat a "Spread" as one object in the UI
+// --- 2. Portfolio Leg Schema ---
+export const PortfolioLegSchema = z.object({
+  id: z.string(),
+  quantity: z.number(),
+  instrument: z.enum(["vanilla", "digital", "barrier"]),
+  active: z.boolean().default(true),
+  params: PortfolioParamsSchema,
+});
+
+// --- 3. Strategy Group Schema ---
 export const StrategyGroupSchema = z.object({
-  id: z.string().uuid(),
-  name: z.string(), // e.g. "Hedge for Q3"
-  strategyType: z.string().optional(), // "straddle", "iron_condor"
+  id: z.string(),
+  name: z.string(),
+  strategyType: z.string().optional(),
   legs: z.array(z.string()), // Array of Leg IDs
 });
 
-// --- 3. The Master State (This goes into DB 'portfolioJson') ---
+// --- 4. Global State Schema ---
 export const PortfolioStateSchema = z.object({
   trades: z.array(PortfolioLegSchema),
-  groups: z.array(StrategyGroupSchema).default([]),
-  
-  // Metadata for the environment when this was saved
+  groups: z.array(StrategyGroupSchema),
   settings: z.object({
-    baseCurrency: z.string().default("USD"),
-    globalVolShock: z.number().default(0), // "What if Vol +5%?"
-    globalSpotShock: z.number().default(0), // "What if Spot -10%?"
-  }).default({}),
+    baseCurrency: z.string(),
+    globalSpotShock: z.number(),
+    globalVolShock: z.number(),
+  }),
 });
 
+// --- Exports ---
+export type PortfolioLeg = z.infer<typeof PortfolioLegSchema>;
 export type PortfolioState = z.infer<typeof PortfolioStateSchema>;
+export type StrategyGroup = z.infer<typeof StrategyGroupSchema>;

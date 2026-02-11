@@ -1,146 +1,83 @@
 import { NextResponse } from 'next/server';
 
-const openApiSpec = {
-  openapi: '3.0.0',
-  info: {
-    title: 'Control Center API',
-    version: '1.2.0',
-    description: 'High-performance financial analytics engine. Supports Black-Scholes, Binomial Trees, and Monte Carlo simulations.',
-  },
-  servers: [{ url: 'http://localhost:3000', description: 'Local Dev' }],
-  paths: {
-    // --- 1. THE PRICER (Your Detailed Version) ---
-    '/api/price': {
-      post: {
-        summary: 'Price an Instrument',
-        description: 'Calculates price and Greeks. The `params` object changes based on the selected `instrument`.',
-        tags: ['Pricer'],
-        requestBody: {
-          required: true,
-          content: {
-            'application/json': {
-              schema: {
-                $ref: '#/components/schemas/PricingRequest',
-              },
-              examples: {
-                Vanilla: {
-                  summary: 'Vanilla Call (Black-Scholes)',
-                  value: {
-                    instrument: 'vanilla',
-                    method: 'black_scholes',
-                    market: { S: 100, r: 0.05, q: 0, sigma: 0.2 },
-                    params: { K: 100, T: 1, type: 'call' }
-                  }
-                },
-                American: {
-                  summary: 'American Put (Binomial)',
-                  value: {
-                    instrument: 'american',
-                    method: 'binomial_crr',
-                    market: { S: 100, r: 0.05, q: 0, sigma: 0.2 },
-                    params: { K: 100, T: 1, type: 'put', steps: 200 }
-                  }
-                },
-                Barrier: {
-                  summary: 'Up-and-Out Barrier (Monte Carlo)',
-                  value: {
-                    instrument: 'barrier',
-                    method: 'mc_discrete',
-                    market: { S: 100, r: 0.05, q: 0, sigma: 0.2 },
-                    params: { K: 100, T: 1, type: 'call', H: 120, barrierType: 'up-out', paths: 50000, steps: 100, seed: 1234 }
-                  }
-                },
-                Digital: {
-                  summary: 'Digital Call (Cash-or-Nothing)',
-                  value: {
-                    instrument: 'digital',
-                    method: 'black_scholes',
-                    market: { S: 100, r: 0.05, q: 0, sigma: 0.2 },
-                    params: { K: 100, T: 1, type: 'call', payout: 100 }
-                  }
-                },
-                Asian: {
-                  summary: 'Asian Arithmetic (Monte Carlo)',
-                  value: {
-                    instrument: 'asian',
-                    method: 'arithmetic_mc',
-                    market: { S: 100, r: 0.05, q: 0, sigma: 0.2 },
-                    params: { K: 100, T: 1, type: 'call', fixings: 50, paths: 20000 }
-                  }
-                },
-                Forward: {
-                  summary: 'Forward Contract',
-                  value: {
-                    instrument: 'forward',
-                    method: 'discounted_value',
-                    market: { S: 100, r: 0.05, q: 0, sigma: 0.2 },
-                    params: { K: 105, T: 1 }
-                  }
-                }
-              }
-            },
-          },
-        },
-        responses: {
-          '200': {
-            description: 'Success',
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/PricingResponse' } } },
+// ============================================================================
+// MODULE 1: PRICER API DEFINITION
+// ============================================================================
+const PRICER_PATH = {
+  '/api/price': {
+    post: {
+      summary: 'Price an Instrument',
+      description: 'Calculates price and Greeks. The `params` object changes based on the selected `instrument`.',
+      tags: ['Pricer'],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: { $ref: '#/components/schemas/PricingRequest' },
+            example: {
+              instrument: 'vanilla',
+              method: 'black_scholes',
+              market: { S: 100, r: 0.05, q: 0, sigma: 0.2 },
+              params: { K: 100, T: 1, type: 'call' }
+            }
           },
         },
       },
+      responses: {
+        '200': {
+          description: 'Success',
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/PricingResponse' } } },
+        },
+      },
     },
+  },
+};
 
-    // --- 2. THE PORTFOLIO (Preserved from previous step so Portfolio Page works) ---
-    '/api/analyze': {
-      post: {
-        summary: 'Calculate Portfolio Risk',
-        description: 'Returns Greeks, VaR, and PnL scenarios for a set of option legs.',
-        tags: ['Portfolio'],
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  legs: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        id: { type: "string" },
-                        quantity: { type: "number" },
-                        instrument: { type: "string", enum: ["vanilla", "digital", "barrier"] },
-                        active: { type: "boolean" },
-                        params: {
-                          type: "object",
-                          properties: {
-                            asset: { type: "string" },
-                            spot: { type: "number" },
-                            strike: { type: "number" },
-                            vol: { type: "number" },
-                            time_to_expiry: { type: "number" },
-                            risk_free_rate: { type: "number" },
-                            option_type: { type: "string", enum: ["call", "put"] },
-                            dividend_yield: { type: "number" },
-                            barrier: { type: "number" }
-                          },
-                          required: ["spot", "strike", "vol", "time_to_expiry"]
-                        }
-                      },
-                      required: ["quantity", "instrument", "params"]
-                    }
-                  },
-                  simulation: {
-                    type: "object",
-                    properties: {
-                      spotShock: { type: "number", default: 0 },
-                      volShock: { type: "number", default: 0 },
-                      daysPassed: { type: "number", default: 0 }
+// ============================================================================
+// MODULE 2: PORTFOLIO API DEFINITION
+// ============================================================================
+const PORTFOLIO_PATH = {
+  '/api/analyze': {
+    post: {
+      summary: 'Calculate Portfolio Risk',
+      description: 'Returns Greeks, VaR, and PnL scenarios for a set of option legs.',
+      tags: ['Portfolio'],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              properties: {
+                legs: { type: "array", items: { $ref: "#/components/schemas/PortfolioLeg" } },
+                simulation: { 
+                    type: "object", 
+                    properties: { 
+                        spotShock: { type: "number" }, 
+                        volShock: { type: "number" }, 
+                        daysPassed: { type: "number" } 
+                    } 
+                }
+              },
+              example: {
+                legs: [
+                  {
+                    id: "demo-leg-1",
+                    quantity: 1,
+                    instrument: "vanilla",
+                    active: true,
+                    params: {
+                      asset: "BTC",
+                      spot: 46000,
+                      strike: 48000,
+                      vol: 0.65,
+                      time_to_expiry: 0.1,
+                      risk_free_rate: 0.05,
+                      option_type: "call"
                     }
                   }
-                },
-                required: ["legs"]
+                ],
+                simulation: { volShock: 0, daysPassed: 0 }
               }
             }
           }
@@ -148,24 +85,154 @@ const openApiSpec = {
         responses: {
           200: {
             description: "Successful analysis",
-            content: {
-              "application/json": {
-                schema: {
-                  type: "object",
-                  properties: {
-                    timestamp: { type: "string" },
-                    data: { type: "object" }
-                  }
-                }
-              }
-            }
+            content: { "application/json": { schema: { type: "object" } } }
           }
         }
       }
     }
   },
+};
+
+// ============================================================================
+// MODULE 3: MACRO API DEFINITION (NEW)
+// ============================================================================
+const MACRO_PATH = {
+  '/api/macro/market': {
+    get: {
+      summary: 'Get Market Snapshot',
+      description: 'Returns the latest live rates for USD/INR, 10Y Bond Yield, and 3M T-Bill Yield.',
+      tags: ['Macro'],
+      responses: {
+        '200': {
+          description: 'Latest Market Data',
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/MarketSnapshot' } } }
+        }
+      }
+    }
+  },
+  '/api/macro/calendar': {
+    get: {
+      summary: 'Get Economic Calendar',
+      description: 'Returns upcoming high-impact economic events (CPI, GDP, Fed Policy).',
+      tags: ['Macro'],
+      parameters: [
+          { name: 'year', in: 'query', schema: { type: 'integer' }, description: 'Filter events by year (e.g. 2025)' }
+      ],
+      responses: {
+        '200': {
+          description: 'List of Events',
+          content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/EconomicEvent' } } } }
+        }
+      }
+    }
+  },
+  '/api/macro/portfolio': {
+    get: {
+      summary: 'Get Macro Book',
+      description: 'Returns all active positions (Bonds and FX Hedges) in the macro book.',
+      tags: ['Macro'],
+      responses: {
+        '200': {
+          description: 'Portfolio Positions',
+          content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/MacroPosition' } } } }
+        }
+      }
+    },
+    post: {
+      summary: 'Add Macro Position',
+      description: 'Books a new trade (Bond or FX) into the risk engine.',
+      tags: ['Macro'],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              required: ['name', 'type', 'bucket', 'amount', 'duration'],
+              properties: {
+                name: { type: 'string', example: '7.26% GS 2033' },
+                type: { type: 'string', enum: ['BOND', 'FX'] },
+                bucket: { type: 'string', enum: ['short', 'long'] },
+                amount: { type: 'number', description: 'Notional Amount' },
+                duration: { type: 'number', description: 'Modified Duration' }
+              }
+            }
+          }
+        },
+      },
+      responses: {
+        '200': { description: 'Position Added' }
+      }
+    }
+  },
+  '/api/macro/portfolio/{id}': {
+    delete: {
+      summary: 'Close Macro Position',
+      description: 'Removes a trade from the active book.',
+      tags: ['Macro'],
+      parameters: [
+        { name: 'id', in: 'path', required: true, schema: { type: 'string' } }
+      ],
+      responses: {
+        '200': { description: 'Position Deleted' }
+      }
+    }
+  }
+};
+
+// ============================================================================
+// MAIN SPECIFICATION
+// ============================================================================
+const openApiSpec = {
+  openapi: '3.0.0',
+  info: {
+    title: 'Control Center API',
+    version: '1.3.0',
+    description: 'High-performance financial analytics engine. Supports Pricing, Portfolio Risk, and Macro Economic Analysis.',
+  },
+  servers: [{ url: '/', description: 'Current Server' }],
+  paths: {
+    ...PRICER_PATH,    // Module 1
+    ...PORTFOLIO_PATH, // Module 2
+    ...MACRO_PATH,     // Module 3 (New)
+  },
   components: {
     schemas: {
+      // --- MACRO SCHEMAS (NEW) ---
+      MarketSnapshot: {
+        type: 'object',
+        properties: {
+          usdinr: { type: 'number', example: 83.50 },
+          inr10y: { type: 'number', example: 7.18 },
+          inr3m: { type: 'number', example: 6.85 },
+          updatedAt: { type: 'string', format: 'date-time' }
+        }
+      },
+      EconomicEvent: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          date: { type: 'string', format: 'date-time' },
+          event: { type: 'string', example: 'US CPI Data' },
+          impact: { type: 'string', enum: ['HIGH', 'MEDIUM', 'LOW'] },
+          previous: { type: 'string' },
+          forecast: { type: 'string' }
+        }
+      },
+      MacroPosition: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          name: { type: 'string' },
+          type: { type: 'string', enum: ['BOND', 'FX'] },
+          bucket: { type: 'string', enum: ['short', 'long'] },
+          amount: { type: 'number' },
+          duration: { type: 'number' },
+          createdAt: { type: 'string', format: 'date-time' }
+        }
+      },
+
+      // --- SHARED RESPONSE SCHEMA ---
       PricingResponse: {
         type: 'object',
         properties: {
@@ -178,7 +245,31 @@ const openApiSpec = {
           latency: { type: 'number' },
         },
       },
-      // Polymorphic Request Schema
+      
+      // --- PORTFOLIO SCHEMAS ---
+      PortfolioLeg: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          quantity: { type: "number" },
+          instrument: { type: "string", enum: ["vanilla", "digital", "barrier"] },
+          active: { type: "boolean" },
+          params: {
+            type: "object",
+            properties: {
+              asset: { type: "string" },
+              spot: { type: "number" },
+              strike: { type: "number" },
+              vol: { type: "number" },
+              time_to_expiry: { type: "number" },
+              risk_free_rate: { type: "number" },
+              option_type: { type: "string", enum: ["call", "put"] }
+            }
+          }
+        }
+      },
+
+      // --- PRICER REQUEST SCHEMAS ---
       PricingRequest: {
         type: 'object',
         required: ['market', 'instrument', 'method'],
@@ -217,8 +308,8 @@ const openApiSpec = {
           { $ref: '#/components/schemas/ForwardParams' },
         ]
       },
-      // --- Detailed Sub-Schemas ---
       
+      // --- DETAILED SUB-SCHEMAS FOR PRICER ---
       VanillaParams: {
         type: 'object',
         title: 'Vanilla Option',
@@ -237,7 +328,6 @@ const openApiSpec = {
           }
         }
       },
-      
       AmericanParams: {
         type: 'object',
         title: 'American Option',
@@ -256,7 +346,6 @@ const openApiSpec = {
           }
         }
       },
-      
       DigitalParams: {
         type: 'object',
         title: 'Digital Option',
@@ -275,7 +364,6 @@ const openApiSpec = {
           }
         }
       },
-      
       BarrierParams: {
         type: 'object',
         title: 'Barrier Option',
@@ -298,7 +386,6 @@ const openApiSpec = {
           }
         }
       },
-      
       AsianParams: {
         type: 'object',
         title: 'Asian Option',
@@ -319,7 +406,6 @@ const openApiSpec = {
           }
         }
       },
-      
       ForwardParams: {
         type: 'object',
         title: 'Forward Contract',

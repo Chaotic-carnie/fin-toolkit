@@ -4,10 +4,11 @@ import { type Metadata } from "next";
 import { Geist } from "next/font/google";
 
 import { TRPCReactProvider } from "~/trpc/react";
-import { Navbar } from "~/components/navbar"; //
+import { Navbar } from "~/components/navbar";
+import { Toaster } from "@/components/ui/sonner"; // Ensure you have the Toaster here!
 
 export const metadata: Metadata = {
-  title: "Peeyush Labs | Quant & Risk Analytics", //
+  title: "Peeyush Labs | Quant & Risk Analytics",
   description: "High-performance financial toolkit",
   icons: [{ rel: "icon", url: "/favicon.ico" }],
 };
@@ -22,14 +23,16 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={`${geist.variable}`}>
-      <body className="bg-[#020617]"> {/* Match your homepage background */}
+      <body className="bg-[#020617] min-h-screen flex flex-col">
         <TRPCReactProvider>
-          <Navbar /> {/* This is now persistent */}
-          <div className="pt-16"> {/* Add padding so content isn't hidden under the nav */}
+          <Navbar />
+          {/* This padding exactly matches the h-16 navbar */}
+          <div className="flex-1 pt-16"> 
             {children}
           </div>
+          <Toaster /> {/* Add this so your toasts show up above everything */}
         </TRPCReactProvider>
       </body>
     </html>
   );
-} 
+}

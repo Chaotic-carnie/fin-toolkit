@@ -25,6 +25,7 @@ model User {
   runs          Run[]
   portfolios    Portfolio[]
   stressPacks   StressPack[]
+  macroScenarios MacroScenario[]
 
   @@map("user")
 }
@@ -119,4 +120,79 @@ model StressPack {
   updatedAt    DateTime @updatedAt
 
   @@index([userId])
+}
+// Add this to your schema.prisma
+
+// --- MACRO MODULE MODELS ---
+
+model MarketSnapshot {
+  id        String   @id @default(cuid())
+  date      DateTime @unique // Ensure one snapshot per day
+  
+  // Core Indicators
+  usdinr        Float  // DEXINUS
+  inr10y        Float  // INDIRLTLT01STM
+  inr3m         Float  // INDIR3TIB01STM
+  cpiIndex      Float  // INDCPIALLMINMEI
+  cpiYoy        Float? // Calculated field
+  
+  // AI / Meta
+  marketRegime  String? // e.g., "Stagflation", "Goldilocks" (For Future AI)
+  aiSummary     String? // "Rates up 20bps due to hawkish Fed..."
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([date])
+}
+
+model MacroScenario {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  
+  // The "State" of the shocks
+  shocks      Json     // { shortRate: 50, longRate: 100, fx: 5, etc. }
+  
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  
+  isPublic    Boolean  @default(false) // For "Shared/Community" packs
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model EconomicEvent {
+  id          String   @id @default(cuid())
+  date        DateTime
+  event       String   // "FOMC Meeting", "RBI MPC"
+  country     String   // "USA", "IND"
+  impact      String   // "High", "Medium", "Low"
+  forecast    String?  // "50bps cut expected"
+  previous    String?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([date])
+}
+
+model PortfolioPosition {
+  id          String   @id @default(cuid())
+  name        String   // e.g. "7.26% GS 2033"
+  type        String   // "BOND" or "FX"
+  
+  // Risk Parameters (Crucial for the Engine)
+  bucket      String   // "short" (for 3M shocks) or "long" (for 10Y shocks)
+  duration    Float    // Modified Duration (Sensitivity to rates)
+  convexity   Float    @default(0) // (Optional) curvature
+  
+  // Size
+  amount      Float    // Notional Value (e.g. 50000000)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

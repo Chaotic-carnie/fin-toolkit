@@ -1,86 +1,116 @@
 import { z } from "zod";
 
-// --- Base Building Blocks ---
-const MarketSchema = z.object({
-  S: z.number().describe("Spot Price"),
-  r: z.number().describe("Risk-free Rate (decimal, e.g., 0.05)"),
-  q: z.number().default(0).describe("Dividend Yield (decimal, e.g., 0.0)"),
-  sigma: z.number().describe("Volatility (decimal, e.g., 0.2)"),
+// --- 1. Enums (Zod Schemas) ---
+export const InstrumentTypeSchema = z.enum(["vanilla", "digital", "barrier", "american", "asian", "forward"]);
+export const OptionTypeSchema = z.enum(["call", "put"]);
+export const MethodSchema = z.enum([
+  "black_scholes", 
+  "binomial_crr", 
+  "mc_discrete", 
+  "mc_bridge", 
+  "arithmetic_mc", 
+  "geometric_closed", 
+  "discounted_value"
+]);
+export const BarrierTypeSchema = z.enum(["up-in", "up-out", "down-in", "down-out"]);
+
+// --- 2. Market Data Schema ---
+export const MarketStateSchema = z.object({
+  S: z.number().positive().describe("Spot Price"),
+  r: z.number().describe("Risk-Free Rate (decimal, e.g. 0.05)"),
+  q: z.number().default(0).describe("Dividend Yield (decimal, e.g. 0.01)"),
+  sigma: z.number().positive().describe("Volatility (decimal, e.g. 0.2)"),
 });
 
-const BaseOptionParams = z.object({
-  K: z.number().describe("Strike Price"),
-  T: z.number().describe("Time to Expiry (years)"),
-  type: z.enum(["call", "put"]).describe("Option Type"),
+// --- 3. Instrument Parameters (Polymorphic) ---
+
+// A. Vanilla
+export const VanillaParamsSchema = z.object({
+  K: z.number().positive(),
+  T: z.number().nonnegative(),
+  type: OptionTypeSchema,
 });
 
-const MethodParams = z.object({
-  steps: z.number().optional().describe("Steps for Binomial/MC methods"),
-  paths: z.number().optional().describe("Simulation paths for Monte Carlo"),
-  seed: z.number().optional().describe("Seed for deterministic RNG"),
+// B. Digital
+export const DigitalParamsSchema = z.object({
+  K: z.number().positive(),
+  T: z.number().nonnegative(),
+  type: OptionTypeSchema,
+  payout: z.number().positive().default(100),
 });
 
-// --- Instrument Specific Schemas ---
-
-const VanillaSchema = z.object({
-  instrument: z.literal("vanilla"),
-  method: z.enum(["black_scholes", "binomial_crr"]),
-  params: BaseOptionParams.merge(MethodParams), // Vanilla needs K, T, Type + Steps (if binomial)
+// C. Barrier
+export const BarrierParamsSchema = z.object({
+  K: z.number().positive(),
+  T: z.number().nonnegative(),
+  type: OptionTypeSchema,
+  H: z.number().positive().describe("Barrier Level"),
+  barrierType: BarrierTypeSchema,
+  paths: z.number().int().positive().default(20000),
+  steps: z.number().int().positive().default(100),
+  seed: z.number().int().optional(),
 });
 
-const AmericanSchema = z.object({
-  instrument: z.literal("american"),
-  method: z.enum(["binomial_crr"]), // American only supports Tree
-  params: BaseOptionParams.merge(MethodParams),
+// D. American
+export const AmericanParamsSchema = z.object({
+  K: z.number().positive(),
+  T: z.number().nonnegative(),
+  type: OptionTypeSchema,
+  steps: z.number().int().positive().default(200), // Binomial tree depth
 });
 
-const DigitalSchema = z.object({
-  instrument: z.literal("digital"),
-  method: z.literal("black_scholes"),
-  params: BaseOptionParams.extend({
-    payout: z.number().describe("Cash payout amount"),
-  }),
+// E. Asian
+export const AsianParamsSchema = z.object({
+  K: z.number().positive(),
+  T: z.number().nonnegative(),
+  type: OptionTypeSchema,
+  fixings: z.number().int().positive().optional(),
+  paths: z.number().int().positive().default(20000),
+  seed: z.number().int().optional(),
 });
 
-const BarrierSchema = z.object({
-  instrument: z.literal("barrier"),
-  method: z.enum(["mc_discrete", "mc_bridge"]),
-  params: BaseOptionParams.merge(MethodParams).extend({
-    H: z.number().describe("Barrier Level"),
-    barrierType: z.enum(["up-in", "up-out", "down-in", "down-out"]),
-  }),
+// F. Forward
+export const ForwardParamsSchema = z.object({
+  K: z.number().positive().describe("Delivery Price"),
+  T: z.number().nonnegative(),
 });
 
-const AsianSchema = z.object({
-  instrument: z.literal("asian"),
-  method: z.enum(["geometric_closed", "arithmetic_mc"]),
-  params: BaseOptionParams.merge(MethodParams).extend({
-    fixings: z.number().optional().describe("Number of observation points (for Arithmetic MC)"),
-  }),
-});
+// --- 4. Union of all Params ---
+export const PricingParamsSchema = z.union([
+  VanillaParamsSchema,
+  DigitalParamsSchema,
+  BarrierParamsSchema,
+  AmericanParamsSchema,
+  AsianParamsSchema,
+  ForwardParamsSchema
+]);
 
-const ForwardSchema = z.object({
-  instrument: z.literal("forward"),
-  method: z.literal("discounted_value"),
-  params: z.object({
-    K: z.number().describe("Delivery Price"),
-    T: z.number().describe("Time to Expiry (years)"),
-  }),
-});
-
-// --- The Master Union ---
+// --- 5. Main Request Schema ---
 export const PricingRequestSchema = z.object({
-  market: MarketSchema,
-  // The 'discriminated union' automatically validates based on 'instrument'
-}).and(
-  z.discriminatedUnion("instrument", [
-    VanillaSchema,
-    AmericanSchema,
-    DigitalSchema,
-    BarrierSchema,
-    AsianSchema,
-    ForwardSchema,
-  ])
-);
+  market: MarketStateSchema,
+  instrument: InstrumentTypeSchema,
+  method: MethodSchema,
+  params: PricingParamsSchema,
+});
 
+// --- 6. Response Schema ---
+export const GreeksSchema = z.object({
+  delta: z.number(),
+  gamma: z.number(),
+  vega: z.number(),
+  theta: z.number(),
+  rho: z.number(),
+});
+
+export const PricingResultSchema = z.object({
+  price: z.number(),
+  greeks: GreeksSchema,
+  latency: z.number().optional(), // ms
+});
+
+// --- 7. Type Exports (Inferred) ---
+export type InstrumentType = z.infer<typeof InstrumentTypeSchema>;
+export type Method = z.infer<typeof MethodSchema>;
 export type PricingRequest = z.infer<typeof PricingRequestSchema>;
+export type PricingResult = z.infer<typeof PricingResultSchema>;
+export type Greeks = z.infer<typeof GreeksSchema>;
