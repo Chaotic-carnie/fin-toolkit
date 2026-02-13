@@ -1,155 +1,105 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { calculateBondPnL, calculateFxPnL, FixedIncomePosition, FxPosition, MacroShocks } from './engine';
 
-export type MacroShockState = {
-  shortRateBps: number;
-  longRateBps: number;
-  fxShockPct: number;
-  horizonDays: number;
-};
-
-export type MacroPosition = {
-  id: string;
-  label: string;
-  notional: number;
-  bucket: 'short' | 'long';
-  duration: number;
-  convexity: number;
-};
-
-export type FxPosition = {
-  id: string;
-  label: string;
-  notional: number;
-  pair: string;
-  direction: 'long' | 'short';
-};
-
-interface MacroStore {
-  hydrated: boolean; // Tracks if store is ready
-  setHydrated: (state: boolean) => void;
-
-  shocks: MacroShockState;
-  setShocks: (s: Partial<MacroShockState>) => void;
-  
-  baseData: {
-    usdinr: number;
-    inr3m: number;
-    inr10y: number;
-  };
-  setBaseData: (d: { usdinr: number; inr3m: number; inr10y: number }) => void;
-
-  fiPositions: MacroPosition[];
-  fxPositions: FxPosition[];
-  setPortfolio: (dbPositions: any[]) => void;
-
-  totalPnl: number;
-  calculateRisk: () => void;
-  clearPortfolio: () => void; // New Action
+// --- Types ---
+export interface BaseData {
+  usdinr: number;
+  inr3m: number;
+  inr10y: number;
 }
 
-export const useMacroStore = create<MacroStore>()(
-  persist(
-    (set, get) => ({
-      hydrated: false,
-      setHydrated: (state) => set({ hydrated: state }),
+export interface PortfolioPosition {
+  id: string;
+  name: string;
+  type: string; // 'BOND' | 'FX'
+  bucket: string; // 'short' | 'long'
+  amount: number; // Decimal in Prisma, number here
+  duration: number;
+}
 
-      shocks: {
-        shortRateBps: 0,
-        longRateBps: 0,
-        fxShockPct: 0,
-        horizonDays: 30,
-      },
+interface MacroStore {
+  hydrated: boolean;
+  baseData: BaseData;
+  shocks: MacroShocks;
+  
+  fiPositions: FixedIncomePosition[];
+  fxPositions: FxPosition[];
+  
+  totalPnl: number;
+  
+  // Actions matching your Client
+  setBaseData: (data: Partial<BaseData>) => void;
+  setShocks: (shocks: Partial<MacroShocks>) => void;
+  setPortfolio: (positions: PortfolioPosition[]) => void;
+  calculateRisk: () => void; // Exposed for manual trigger
+  
+}
 
-      baseData: {
-        usdinr: 83.5,
-        inr3m: 6.8,
-        inr10y: 7.1,
-      },
+export const useMacroStore = create<MacroStore>((set, get) => ({
+  hydrated: false,
+  
+  baseData: { usdinr: 83.0, inr3m: 6.5, inr10y: 7.2 },
+  
+  shocks: {
+    shortRateBps: 0,
+    longRateBps: 0,
+    fxShockPct: 0,
+    fundingRatePct: 6.5,
+    horizonDays: 0,
+  },
 
-      fiPositions: [],
-      fxPositions: [],
-      totalPnl: 0,
+  fiPositions: [],
+  fxPositions: [],
+  totalPnl: 0,
 
-      setShocks: (newShocks) => {
-        set((state) => ({ shocks: { ...state.shocks, ...newShocks } }));
-        get().calculateRisk();
-      },
+  setBaseData: (data) => set((state) => ({ 
+    baseData: { ...state.baseData, ...data } 
+  })),
 
-      setBaseData: (data) => {
-        if (!data.usdinr) return;
-        set({ baseData: data });
-        get().calculateRisk();
-      },
+  setShocks: (newShocks) => {
+    set((state) => ({ shocks: { ...state.shocks, ...newShocks } }));
+    get().calculateRisk(); // Auto-calc on shock change
+  },
 
-      setPortfolio: (dbPositions) => {
-        const fiPositions = dbPositions
-          .filter((p: any) => p.type === "BOND")
-          .map((p: any) => ({
-            id: p.id,
-            label: p.name,
-            notional: Number(p.amount) || 0,
-            bucket: p.bucket,
-            duration: Number(p.duration) || 0,
-            convexity: 0,
-          }));
+  setPortfolio: (rawPositions) => {
+    const fi: FixedIncomePosition[] = rawPositions
+      .filter(p => p.type === 'BOND')
+      .map(p => ({
+        id: p.id,
+        label: p.name,
+        notionalInr: Number(p.amount),
+        modifiedDuration: Number(p.duration),
+        convexity: Number(p.convexity || 0), // Map from Prisma decimal to number
+        bucket: (p.bucket as 'short' | 'long') || 'long'
+      }));
 
-        const fxPositions = dbPositions
-          .filter((p: any) => p.type === "FX")
-          .map((p: any) => ({
-            id: p.id,
-            label: p.name,
-            notional: Number(p.amount) || 0,
-            pair: "USD/INR",
-            direction: (Number(p.amount) || 0) >= 0 ? "long" : "short",
-          }));
+    const fx: FxPosition[] = rawPositions
+      .filter(p => p.type === 'FX')
+      .map(p => ({
+        id: p.id,
+        label: p.name,
+        notionalUsd: Number(p.amount),
+      }));
 
-        set({ fiPositions, fxPositions });
-        get().calculateRisk();
-      },
+    set({ fiPositions: fi, fxPositions: fx, hydrated: true });
+    get().calculateRisk(); // Auto-calc on portfolio load
+  },
 
-      clearPortfolio: () => {
-        set({ fiPositions: [], fxPositions: [], totalPnl: 0 });
-      },
+  calculateRisk: () => {
+    const { fiPositions, fxPositions, shocks, baseData } = get();
+    let total = 0;
 
-      calculateRisk: () => {
-        const { baseData, fiPositions, fxPositions, shocks } = get();
+    // Bond PnL
+    fiPositions.forEach(p => {
+      const shockBps = p.bucket === 'short' ? shocks.shortRateBps : shocks.longRateBps;
+      total += calculateBondPnL(p, shockBps).pnl;
+    });
 
-        if (!baseData || !baseData.usdinr || !baseData.inr10y) {
-          console.warn("Market data not ready. Skipping calculation.");
-          return;
-        }
+    // FX PnL
+    fxPositions.forEach(p => {
+      total += calculateFxPnL(p, shocks, baseData.usdinr, baseData.inr3m).pnl;
+    });
 
-        let total = 0;
-
-        fiPositions.forEach((pos) => {
-          const shockBps =
-            (pos.bucket === "short"
-              ? shocks.shortRateBps
-              : shocks.longRateBps) || 0;
-
-          const rateChange = shockBps / 10000;
-
-          const val =
-            -1 * (pos.notional || 0) * (pos.duration || 0) * rateChange;
-
-          if (!isNaN(val)) total += val;
-        });
-
-        fxPositions.forEach((pos) => {
-          const shockDec = (shocks.fxShockPct || 0) / 100;
-          const val = (pos.notional || 0) * shockDec;
-          if (!isNaN(val)) total += val;
-        });
-
-        set({ totalPnl: isNaN(total) ? 0 : total });
-      },
-    }),
-    {
-      name: "macro-store",
-      onRehydrateStorage: () => (state) => {
-        state?.setHydrated(true);
-      },
-    }
-  )
-);
+    set({ totalPnl: total });
+  }
+}));

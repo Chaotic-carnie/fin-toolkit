@@ -1,80 +1,64 @@
 "use client";
 
+import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
-
-export type CalendarEvent = {
-  id: string;
-  date: Date;
-  event: string;
-  country: string;
-  impact: string;
-  forecast: string | null;
-};
+import { cn } from "@/lib/utils";
+import type { EconomicEvent } from "@prisma/client";
 
 interface Props {
-  events: CalendarEvent[];
-  onEventClick?: (event: CalendarEvent) => void;
+  events: EconomicEvent[];
+  onEventClick: (event: EconomicEvent) => void;
 }
 
-export function EconomicCalendar({ events = [], onEventClick }: Props) {
-  const today = new Date();
+export function EconomicCalendar({ events, onEventClick }: Props) {
+  // Sort by date (nearest first)
+  const sortedEvents = [...events].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  if (sortedEvents.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-full text-slate-500 text-xs italic">
+        No events scheduled for this period.
+      </div>
+    );
+  }
 
   return (
-    // FIXED: Switched to standard div with your custom utility class
-    <div className="h-full pr-2 overflow-y-auto dark-scrollbar">
-      <div className="space-y-3 pb-4">
-        {events && events.map((ev) => {
-          const isPast = new Date(ev.date) < today;
-          const isHigh = ev.impact === "High";
-          
-          return (
-            <div 
-              key={ev.id}
-              onClick={() => onEventClick?.(ev)}
-              className={`
-                relative p-3 rounded-lg border text-left transition-all cursor-pointer group
-                ${isPast 
-                  ? 'opacity-50 border-white/5 bg-slate-900/20' 
-                  : 'border-white/10 bg-slate-900/60 hover:border-emerald-500/30 hover:bg-slate-800'
-                }
-              `}
-            >
-              <div className="flex justify-between items-start mb-1">
-                <div className="flex items-center gap-2">
-                  <span className={`text-[10px] font-bold uppercase tracking-wider ${isPast ? 'text-slate-600' : 'text-slate-500 group-hover:text-slate-400'}`}>
-                    {new Date(ev.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                  </span>
-                  {ev.country === 'USA' && <span className="text-[10px] opacity-80">🇺🇸</span>}
-                  {ev.country === 'IND' && <span className="text-[10px] opacity-80">🇮🇳</span>}
-                </div>
-                <Badge 
-                  variant="outline" 
-                  className={`text-[9px] h-4 ${isHigh ? 'border-rose-500/40 text-rose-400 bg-rose-500/10' : 'border-slate-700 text-slate-400'}`}
-                >
-                  {ev.impact}
-                </Badge>
-              </div>
-
-              <div className={`text-sm font-medium ${isPast ? 'text-slate-500' : 'text-slate-200 group-hover:text-white transition-colors'}`}>
-                {ev.event}
-              </div>
-
-              {ev.forecast && (
-                <div className="mt-2 text-[11px] text-slate-400 flex items-center gap-2">
-                  <span className={`w-1.5 h-1.5 rounded-full ${isPast ? 'bg-slate-700' : 'bg-blue-500/50'}`}></span>
-                  Forecast: <span className={isPast ? 'text-slate-500' : 'text-slate-300'}>{ev.forecast}</span>
-                </div>
-              )}
-            </div>
-          );
-        })}
+    <div className="h-full overflow-y-auto dark-scrollbar pr-2 space-y-2">
+      {sortedEvents.map((ev) => {
+        const date = new Date(ev.date);
+        const isHighImpact = ev.impact === "HIGH";
         
-        {(!events || events.length === 0) && (
-          <div className="text-center text-slate-500 py-10 text-xs">
-            No upcoming events found.
+        return (
+          <div 
+            key={ev.id}
+            onClick={() => onEventClick(ev)}
+            className="flex items-center justify-between p-3 rounded bg-slate-950/50 border border-slate-800 hover:border-slate-600 hover:bg-slate-900 cursor-pointer group transition-all"
+          >
+            {/* Date Box */}
+            <div className="flex flex-col items-center justify-center w-10 shrink-0 border-r border-slate-800 pr-3 mr-3">
+              <span className="text-[10px] uppercase font-bold text-slate-500">{format(date, "MMM")}</span>
+              <span className="text-lg font-bold text-slate-200 leading-none">{format(date, "dd")}</span>
+            </div>
+
+            {/* Event Info */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs font-medium text-slate-200 truncate group-hover:text-blue-300 transition-colors">
+                  {ev.event}
+                </span>
+                {isHighImpact && (
+                  <Badge variant="destructive" className="h-4 px-1 text-[9px] uppercase tracking-wider">High</Badge>
+                )}
+              </div>
+              <div className="flex items-center gap-3 text-[10px] text-slate-500 font-mono">
+                <span>Act: <span className="text-slate-300">{ev.actual || "--"}</span></span>
+                <span className="w-px h-3 bg-slate-700" />
+                <span>Est: <span className="text-slate-300">{ev.consensus || "--"}</span></span>
+              </div>
+            </div>
           </div>
-        )}
-      </div>
+        );
+      })}
     </div>
   );
 }

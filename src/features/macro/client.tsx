@@ -15,10 +15,12 @@ import { HistoricalReplay } from "@/features/macro/components/HistoricalReplay";
 import { EconomicCalendar } from "@/features/macro/components/EconomicCalendar";
 import { PnLAttribution } from "@/features/macro/components/PnLAttribution";
 import { useMacroStore } from "@/features/macro/store";
-import { refreshMarketData, fetchCalendarEvents } from "./actions";
+import { refreshMarketData, fetchCalendarEvents } from "../../app/macro/actions";
 import { toast } from "sonner";
 import { ScenarioManager } from "@/features/macro/components/ScenarioManager";
 import { PortfolioManager } from "@/features/macro/components/PortfolioManager"; 
+import { VaRHistogram } from "@/features/macro/components/VaRHistogram";
+import { KeyRateSpider } from "@/features/macro/components/KeyRateSpider";
 
 interface Props {
   snapshot: MarketSnapshot;
@@ -147,6 +149,16 @@ export function MacroClient({ snapshot, events: serverEvents, positions }: Props
                 </div>
             </div>
             <PortfolioManager positions={positions} />
+        </div>
+
+        {/* NEW: RISK METRICS ROW */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-[280px]">
+            <Card className="bg-slate-900 border-white/10 shadow-lg p-4">
+                <VaRHistogram />
+            </Card>
+            <Card className="bg-slate-900 border-white/10 shadow-lg p-4">
+                <KeyRateSpider />
+            </Card>
         </div>
 
         {/* 1. Historical Replay (Top Priority) */}
