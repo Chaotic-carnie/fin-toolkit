@@ -277,3 +277,63 @@ export const taxSchemas = {
     },
   },
 };
+
+// src/app/api/docs/schemas.ts
+
+export const strategySchemas = {
+  StrategyMarketInput: {
+    type: 'object',
+    properties: {
+      spot: { type: 'number', example: 100 },
+      vol: { type: 'number', example: 0.20 },
+      rate: { type: 'number', example: 0.03 },
+      dividend: { type: 'number', example: 0.0 },
+      skew: { type: 'number', example: 0.15 }
+    },
+    required: ['spot', 'vol']
+  },
+  StrategyViewInput: {
+    type: 'object',
+    properties: {
+      direction: { type: 'string', enum: ['bullish', 'bearish', 'neutral'], example: 'bullish' },
+      moveMode: { type: 'string', enum: ['pct', 'target'], example: 'pct' },
+      movePct: { type: 'number', example: 5 },
+      targetPrice: { type: 'number', nullable: true },
+      horizonDays: { type: 'number', example: 30 },
+      volView: { type: 'string', enum: ['flat', 'up', 'down'], example: 'flat' },
+      volShift: { type: 'number', example: 0.0 },
+      event: { type: 'boolean', example: false }
+    },
+    required: ['direction', 'horizonDays']
+  },
+  StrategyConstraintsInput: {
+    type: 'object',
+    properties: {
+      maxLoss: { type: 'number', nullable: true, example: null },
+      maxLegs: { type: 'integer', example: 4 },
+      definedRiskOnly: { type: 'boolean', example: true },
+      allowMultiExpiry: { type: 'boolean', example: true },
+      incomeVsConvexity: { type: 'number', example: 0.5 }
+    }
+  },
+  StrategyGenInput: {
+    type: 'object',
+    properties: {
+      method: { type: 'string', enum: ['black_scholes', 'binomial_crr'], example: 'black_scholes' },
+      strikeStep: { type: 'number', example: 1 },
+      expiryDays: { type: 'number', example: 90 },
+      longExpiryDays: { type: 'number', example: 120 },
+      widthPct: { type: 'number', nullable: true }
+    }
+  },
+  StrategyRecommendRequest: {
+    type: 'object',
+    properties: {
+      market: { $ref: '#/components/schemas/StrategyMarketInput' },
+      view: { $ref: '#/components/schemas/StrategyViewInput' },
+      constraints: { $ref: '#/components/schemas/StrategyConstraintsInput' },
+      gen: { $ref: '#/components/schemas/StrategyGenInput' }
+    },
+    required: ['market', 'view', 'constraints', 'gen']
+  }
+};

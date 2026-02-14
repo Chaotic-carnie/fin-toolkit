@@ -59,14 +59,14 @@ export function PortfolioGrid() {
 
       {/* Table Body */}
       <div className="divide-y divide-white/5">
-        {trades.map((trade) => {
+        {trades.map((trade, index) => {
           const result = legResults[trade.id];
           const isCall = trade.params.option_type === "call";
           const isLong = trade.quantity > 0;
 
           return (
             <div 
-              key={trade.id} 
+              key={`${trade.id}-${index}`}
               className="grid grid-cols-12 gap-4 px-4 py-3 items-center hover:bg-slate-900/40 transition-colors group"
             >
               

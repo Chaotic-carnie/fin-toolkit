@@ -144,3 +144,19 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* src/styles/globals.css */
+@layer components {
+  .tab-trigger {
+    @apply px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-500 
+           data-[state=active]:text-white data-[state=active]:border-b-2 
+           data-[state=active]:border-blue-600 rounded-none h-full transition-all;
+  }
+
+  .dark-scrollbar::-webkit-scrollbar {
+    width: 4px;
+  }
+  .dark-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-white/10 rounded-full;
+  }
+}

@@ -206,3 +206,46 @@ export const macroPaths = {
     }
   }
 };
+
+
+export const strategyPaths = {
+  '/api/strategy/recommend': {
+    post: {
+      summary: 'Recommend Options Strategies',
+      description: 'Generates, prices, and scores optimal multi-leg option strategies based on market assumptions, directional views, and risk constraints.',
+      tags: ['Strategy Builder'],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: { $ref: '#/components/schemas/StrategyRecommendRequest' },
+            examples: {
+              BullishBreakout: {
+                summary: 'Bullish +5% Move',
+                value: {
+                  market: { spot: 100, vol: 0.2, rate: 0.03, dividend: 0, skew: 0.15 },
+                  view: { direction: 'bullish', moveMode: 'pct', movePct: 5, horizonDays: 30, volView: 'flat', volShift: 0, event: false },
+                  constraints: { maxLoss: null, maxLegs: 4, definedRiskOnly: true, allowMultiExpiry: true, incomeVsConvexity: 0.5 },
+                  gen: { method: 'black_scholes', strikeStep: 1, expiryDays: 90, longExpiryDays: 120, widthPct: null }
+                }
+              }
+            }
+          }
+        }
+      },
+      responses: {
+        '200': {
+          description: 'Top scored strategy candidates',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'array',
+                items: { type: 'object' } // Detailed Candidate Response
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+};
