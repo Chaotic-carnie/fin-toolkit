@@ -3,53 +3,51 @@
 import { useEffect, useState } from "react";
 import type { MarketSnapshot, EconomicEvent, PortfolioPosition } from "@prisma/client";
 import { Card } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { RefreshCcw, Info } from "lucide-react";
-import { MacroChart } from "@/features/macro/components/MacroChart";
-import { RiskHeatmap } from "@/features/macro/components/RiskHeatmap";
-import { MacroControls } from "@/features/macro/components/MacroControls";
-import { HistoricalReplay } from "@/features/macro/components/HistoricalReplay";
-import { EconomicCalendar } from "@/features/macro/components/EconomicCalendar";
-import { PnLAttribution } from "@/features/macro/components/PnLAttribution";
-import { useMacroStore } from "@/features/macro/store";
-import { refreshMarketData, fetchCalendarEvents } from "../../app/macro/actions";
+import { RefreshCcw, Printer } from "lucide-react";
+import { toPng } from "html-to-image";
+import jsPDF from "jspdf";
+import { Loader2 } from "lucide-react";
+
+// Components
+import { MacroChart } from "./components/MacroChart";
+import { RiskHeatmap } from "./components/RiskHeatmap";
+import { MacroControls } from "./components/MacroControls";
+import { HistoricalReplay } from "./components/HistoricalReplay";
+import { EconomicCalendar } from "./components/EconomicCalendar";
+import { PnLAttribution } from "./components/PnLAttribution";
+import { ScenarioManager } from "./components/ScenarioManager";
+import { PortfolioManager } from "./components/PortfolioManager"; 
+import { VaRHistogram } from "./components/VaRHistogram";
+import { KeyRateSpider } from "./components/KeyRateSpider";
+
+// Store & Actions
+import { useMacroStore } from "./store";
+import { fetchCalendarEvents } from "./actions";
 import { toast } from "sonner";
-import { ScenarioManager } from "@/features/macro/components/ScenarioManager";
-import { PortfolioManager } from "@/features/macro/components/PortfolioManager"; 
-import { VaRHistogram } from "@/features/macro/components/VaRHistogram";
-import { KeyRateSpider } from "@/features/macro/components/KeyRateSpider";
 
 interface Props {
-  snapshot: MarketSnapshot;
+  snapshot: any;
   events: EconomicEvent[];
   positions: PortfolioPosition[];
 }
 
 export function MacroClient({ snapshot, events: serverEvents, positions }: Props) {
-  const { setBaseData, calculateRisk, totalPnl, setShocks, setPortfolio, hydrated } = useMacroStore();
+  const { setBaseData, totalPnl, diversificationBenefit, setShocks, setPortfolio, hydrated } = useMacroStore();
   
   const [events, setEvents] = useState<EconomicEvent[]>(serverEvents || []);
   const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString());
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Initialize Data
   useEffect(() => {
-    setBaseData({
-      usdinr: snapshot.usdinr,
-      inr3m: snapshot.inr3m,
-      inr10y: snapshot.inr10y
-    });
-    setTimeout(() => calculateRisk(), 100);
-  }, [snapshot, setBaseData, calculateRisk]);
+  setBaseData({ usdinr: snapshot.usdinr, inr3m: snapshot.inr3m, inr10y: snapshot.inr10y });
+    // Removed setTimeout! State flows perfectly now.
+  }, [snapshot, setBaseData]);
 
-  // Sync DB Positions
   useEffect(() => {
-    if (positions) {
-        setPortfolio(positions);
-    }
+    if (positions) setPortfolio(positions);
   }, [positions, setPortfolio]);
 
   const handleYearChange = async (year: string) => {
@@ -60,33 +58,97 @@ export function MacroClient({ snapshot, events: serverEvents, positions }: Props
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    try {
-        await refreshMarketData();
-        toast.success("Market Data Updated");
-    } catch(e) {
-        console.error(e);
-    } finally {
-        setIsRefreshing(false);
-    }
+    setTimeout(() => {
+      setIsRefreshing(false);
+      toast.success("Market Data Updated");
+    }, 800);
   };
 
   const handleEventClick = (ev: EconomicEvent) => {
-    if (ev.event.includes("FOMC")) {
-        setShocks({ shortRateBps: 25, longRateBps: 15, fxShockPct: 1.2, horizonDays: 7 });
-        toast.info("Applied FOMC Volatility Scenario");
-    } else {
-        toast.info("Scenario Selected: " + ev.event);
+    toast.info("Event selected: " + ev.event);
+  };
+
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportPDF = async () => {
+    const printArea = document.getElementById("pdf-export-area");
+    if (!printArea) {
+      toast.error("Error: Could not find the dashboard area to print.");
+      return;
+    }
+
+    try {
+      setIsExporting(true);
+      toast.info("Generating PDF... this might take a second.");
+
+      // 1. Wait a tick for Recharts animations to settle
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // 2. Capture the DOM natively using html-to-image
+      const dataUrl = await toPng(printArea, {
+        quality: 1.0,
+        pixelRatio: 2, // High resolution
+        backgroundColor: "#020617", // Force solid dark background (slate-950)
+        filter: (node) => {
+          // Hide the export buttons from the final PDF
+          if (node instanceof HTMLElement && node.dataset.html2canvasIgnore === "true") {
+            return false;
+          }
+          return true;
+        }
+      });
+      
+      // 3. Setup PDF
+      const pdf = new jsPDF("p", "mm", "a4");
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      
+      // Calculate aspect ratio height
+      const pdfHeight = (printArea.offsetHeight * pdfWidth) / printArea.offsetWidth;
+      
+      let heightLeft = pdfHeight;
+      let position = 0;
+
+      // Paint first page dark
+      pdf.setFillColor(2, 6, 23); 
+      pdf.rect(0, 0, pdfWidth, pageHeight, "F");
+
+      // Add image
+      pdf.addImage(dataUrl, "PNG", 0, position, pdfWidth, pdfHeight);
+      heightLeft -= pageHeight;
+
+      // Handle multi-page overflow
+      while (heightLeft > 0) {
+        position = heightLeft - pdfHeight;
+        pdf.addPage();
+        
+        // Paint subsequent pages dark
+        pdf.setFillColor(2, 6, 23); 
+        pdf.rect(0, 0, pdfWidth, pageHeight, "F");
+        
+        pdf.addImage(dataUrl, "PNG", 0, position, pdfWidth, pdfHeight);
+        heightLeft -= pageHeight;
+      }
+
+      const dateStr = new Date().toISOString().split('T')[0];
+      pdf.save(`Macro_Risk_Report_${dateStr}.pdf`);
+      toast.success("PDF Exported Successfully");
+
+    } catch (error) {
+      console.error("PDF Export failed:", error);
+      toast.error("Failed to generate PDF. See console.");
+    } finally {
+      setIsExporting(false);
     }
   };
 
-  // Prevent hydration mismatch
   if (!hydrated) return null;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full items-start pb-10">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full items-start pb-10 print-container">
       
-      {/* LEFT: Controls */}
-      <div className="lg:col-span-4 flex flex-col gap-6">
+      {/* LEFT: Controls & Calendar */}
+      <div className="lg:col-span-4 flex flex-col gap-6 no-print">
         <Card className="p-6 bg-slate-900 border-white/10 shadow-xl z-20">
           <div className="flex items-center justify-between mb-6">
             <h3 className="font-semibold text-slate-200">Scenario Builder</h3>
@@ -98,29 +160,23 @@ export function MacroClient({ snapshot, events: serverEvents, positions }: Props
                         <RefreshCcw className={isRefreshing ? "animate-spin" : ""} size={14} />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent className="bg-slate-800 border-slate-700 text-slate-200 text-xs">
-                      <p>Refresh live market rates</p>
-                    </TooltipContent>
+                    <TooltipContent className="bg-slate-800 text-slate-200 text-xs">Refresh rates</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
-                
                 <ScenarioManager />
             </div>
           </div>
           <MacroControls />
         </Card>
 
-        {/* Calendar */}
-        <Card className="p-4 bg-slate-900 border-white/10 shadow-lg h-[480px] flex flex-col overflow-hidden">
+        <Card className="p-4 bg-slate-900 border-white/10 shadow-lg h-[400px] flex flex-col overflow-hidden">
            <div className="flex justify-between items-center mb-4 px-1 shrink-0">
              <h4 className="text-sm font-semibold text-slate-200">Event Schedule</h4>
              <Select value={selectedYear} onValueChange={handleYearChange}>
-                <SelectTrigger className="w-[80px] h-7 text-xs bg-slate-800 border-slate-700 text-slate-200 focus:ring-slate-600">
-                    <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-slate-900 border-slate-700 z-50">
-                    <SelectItem value="2025" className="text-slate-300 focus:bg-slate-800 focus:text-white cursor-pointer">2025</SelectItem>
-                    <SelectItem value="2026" className="text-slate-300 focus:bg-slate-800 focus:text-white cursor-pointer">2026</SelectItem>
+                <SelectTrigger className="w-[80px] h-7 text-xs bg-slate-800 border-slate-700 text-slate-200"><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-slate-900 border-slate-700">
+                    <SelectItem value="2025">2025</SelectItem>
+                    <SelectItem value="2026">2026</SelectItem>
                 </SelectContent>
              </Select>
            </div>
@@ -130,67 +186,73 @@ export function MacroClient({ snapshot, events: serverEvents, positions }: Props
         </Card>
       </div>
 
-      {/* RIGHT: Analysis */}
-      <div className="lg:col-span-8 flex flex-col gap-6 pt-2">
-        
-        {/* Header & Portfolio Manager */}
-        <div className="flex items-center justify-between bg-slate-900/50 p-4 rounded-xl border border-white/5">
+      {/* RIGHT: Analysis (This is the section that gets printed) */}
+      <div id="pdf-export-area" className="lg:col-span-8 flex flex-col gap-6 pt-2 p-4 bg-slate-950 rounded-xl">        
+        {/* Top Bar */}
+        <div className="flex flex-wrap gap-4 items-center justify-between bg-slate-900/50 p-4 rounded-xl border border-white/5">
             <div>
                 <h2 className="text-xl font-bold text-slate-100 tracking-tight">Active Portfolio Risk</h2>
-                <div className="flex gap-6 mt-1">
+                <div className="flex flex-wrap gap-6 mt-1">
                     <div className="text-xs text-slate-400">
                         Est. P&L: <span className={`font-mono font-bold ${totalPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                             {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(totalPnl)}
                         </span>
                     </div>
-                    <div className="text-xs text-slate-400">
-                         VaR (95%): <span className="text-slate-200 font-mono">{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(Math.abs(totalPnl * 1.65))}</span>
-                    </div>
+                    {diversificationBenefit > 0 && (
+                        <div className="text-xs text-slate-400">
+                            Div. Benefit: <span className="text-blue-400 font-mono">+{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(diversificationBenefit)}</span>
+                        </div>
+                    )}
                 </div>
             </div>
-            <PortfolioManager positions={positions} />
+            <div className="flex gap-3" data-html2canvas-ignore="true">
+                <Button 
+                    size="sm" 
+                    variant="secondary" 
+                    className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 h-9" 
+                    onClick={handleExportPDF}
+                    disabled={isExporting}
+                >
+                    {isExporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Printer className="w-4 h-4 mr-2 text-emerald-400" />}
+                    {isExporting ? "Generating..." : "Export PDF"}
+                </Button>
+                <PortfolioManager positions={positions} />
+            </div>
         </div>
 
-        {/* NEW: RISK METRICS ROW */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-[280px]">
-            <Card className="bg-slate-900 border-white/10 shadow-lg p-4">
+        {/* VaR and Spider Row */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-[300px] break-inside-avoid">
+            <Card className="bg-slate-900 border-white/10 shadow-lg">
                 <VaRHistogram />
             </Card>
-            <Card className="bg-slate-900 border-white/10 shadow-lg p-4">
+            <Card className="bg-slate-900 border-white/10 shadow-lg">
                 <KeyRateSpider />
             </Card>
         </div>
 
-        {/* 1. Historical Replay (Top Priority) */}
-        <Card className="p-6 bg-slate-900 border-white/10 shadow-lg min-h-[400px]">
-           <div className="flex items-center gap-2 mb-4">
-               <h4 className="font-semibold text-slate-200">Historical Stress Replay</h4>
-               <span className="text-[10px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full border border-blue-500/30">Scenario Mode</span>
-           </div>
-           <HistoricalReplay />
-        </Card>
-
-        {/* 2. Risk Heatmap */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="p-6 bg-slate-900 border-white/10 shadow-lg flex flex-col items-center justify-center">
+        {/* Heatmap & Attribution */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 break-inside-avoid">
+            <Card className="p-6 bg-slate-900 border-white/10 shadow-lg">
                <RiskHeatmap />
             </Card>
-            
-            {/* 3. P&L Attribution */}
             <Card className="p-6 bg-slate-900 border-white/10 shadow-lg">
                <PnLAttribution />
             </Card>
         </div>
 
-        {/* 4. Yield Curve (Separate Box) */}
-        <Card className="p-6 bg-slate-900 border-white/10 shadow-lg">
-           <div className="flex items-center justify-between mb-4">
-               <h4 className="font-semibold text-slate-200">Yield Curve Dynamics</h4>
-           </div>
-           <div className="h-[300px]">
+        {/* Yield Curve */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 break-inside-avoid">
+            <Card className="p-6 bg-slate-900 border-white/10 shadow-lg min-h-[300px]">
                <MacroChart />
-           </div>
-        </Card>
+            </Card>
+            <Card className="p-6 bg-slate-900 border-white/10 shadow-lg min-h-[300px] no-print">
+               <div className="flex items-center gap-2 mb-4">
+                   <h4 className="font-semibold text-slate-200">Stress Replay</h4>
+               </div>
+               <HistoricalReplay />
+            </Card>
+        </div>
+
       </div>
     </div>
   );

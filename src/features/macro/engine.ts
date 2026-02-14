@@ -1,128 +1,90 @@
+// src/features/macro/engine.ts
 import { v4 as uuidv4 } from 'uuid';
 
-// --- Types ---
+export type RateBucket = '3m' | '2y' | '5y' | '10y';
 
-export type RateBucket = 'short' | 'long';
-
+// --- Position Types ---
 export interface FixedIncomePosition {
-  id: string;
-  label: string;
-  notionalInr: number;
-  modifiedDuration: number;
-  convexity: number;
-  bucket: RateBucket;
+  id: string; label: string; notionalInr: number; modifiedDuration: number; convexity: number; bucket: RateBucket;
 }
-
 export interface FxPosition {
-  id: string;
-  label: string;
-  notionalUsd: number; // +Long USD / -Short USD
+  id: string; label: string; notionalUsd: number;
+}
+export interface EquityPosition {
+  id: string; label: string; notionalInr: number; beta: number; 
+}
+export interface CreditPosition {
+  id: string; label: string; notionalInr: number; modifiedDuration: number; spreadDuration: number; bucket: RateBucket;
+}
+export interface OptionPosition {
+  id: string; label: string; notionalInr: number; delta: number; gamma: number; vega: number;
 }
 
 export interface MacroShocks {
-  shortRateBps: number;
-  longRateBps: number;
-  fxShockPct: number; // e.g. 5.0 = 5% devaluation of INR (USD goes UP)
-  fundingRatePct: number; // For carry calculation
+  rate3mBps: number;
+  rate2yBps: number;
+  rate5yBps: number;
+  rate10yBps: number;
+  fxShockPct: number; 
+  equityShockPct: number;  
+  creditSpreadBps: number; 
+  volShockPts: number; // NEW: Volatility (VIX) shock in absolute points
   horizonDays: number;
 }
 
-export interface PnLResult {
-  assetId: string;
-  pnl: number;
-  details: Record<string, number | string>;
-}
+export interface PnLResult { assetId: string; pnl: number; }
 
 // --- Math Core ---
 
-/**
- * Calculates Bond Price Change using Duration + Convexity approximation.
- * ΔP/P ≈ -D * Δy + 0.5 * C * (Δy)^2
- */
-export const calculateBondPnL = (
-  pos: FixedIncomePosition, 
-  shockBps: number
-): PnLResult => {
-  const dy = shockBps / 10000; // Convert bps to decimal
-  const pctChange = (-pos.modifiedDuration * dy) + (0.5 * pos.convexity * (dy ** 2));
-  const pnl = pos.notionalInr * pctChange;
-
-  return {
-    assetId: pos.id,
-    pnl,
-    details: {
-      shockBps,
-      pctChange: pctChange * 100,
-      dv01: pos.notionalInr * pos.modifiedDuration * 0.0001,
-    }
-  };
-};
-
-/**
- * Calculates FX PnL including Spot Move + Carry Proxy.
- * Total = Spot PnL + (Domestic Rate - Funding Rate) * Time
- */
-export const calculateFxPnL = (
-  pos: FxPosition,
-  shocks: MacroShocks,
-  baseUsdInr: number,
-  base3mRate: number // Current 3M Domestic Rate
-): PnLResult => {
-  // 1. Spot PnL
-  const spotShock = shocks.fxShockPct / 100;
-  const newSpot = baseUsdInr * (1 + spotShock);
-  const spotPnl = pos.notionalUsd * (newSpot - baseUsdInr);
-
-  // 2. Carry PnL
-  // We assume the Short Rate shock affects the domestic yield immediately
-  const domesticRate = base3mRate + (shocks.shortRateBps / 100); 
-  const spread = (domesticRate - shocks.fundingRatePct) / 100;
-  const t = shocks.horizonDays / 365;
+export const calculateBondPnL = (pos: FixedIncomePosition, shocks: MacroShocks): PnLResult => {
+  // Map bucket to specific curve point shock
+  const shockMap = { '3m': shocks.rate3mBps, '2y': shocks.rate2yBps, '5y': shocks.rate5yBps, '10y': shocks.rate10yBps };
+  const dy = (shockMap[pos.bucket] || shocks.rate10yBps) / 10000;
   
-  // Carry is earned on the Notional in INR terms
-  // (Simplified proxy: usually carry is on the swap points, but this is a good approximation)
-  const carryPnl = (pos.notionalUsd * baseUsdInr) * spread * t;
-
-  return {
-    assetId: pos.id,
-    pnl: spotPnl + carryPnl,
-    details: {
-      spotPnl,
-      carryPnl,
-      newSpot,
-      effectiveDomesticRate: domesticRate
-    }
-  };
+  const pctChange = (-pos.modifiedDuration * dy) + (0.5 * pos.convexity * (dy ** 2));
+  return { assetId: pos.id, pnl: pos.notionalInr * pctChange };
 };
 
-/**
- * The "Grid" Generator
- * Vectorized calculation for heatmaps.
- */
-export const generateRiskGrid = (
-  fiPositions: FixedIncomePosition[],
-  fxPositions: FxPosition[],
-  baseUsdInr: number,
-  base3mRate: number,
-  xShocks: number[], // e.g. FX Shocks
-  yShocks: number[]  // e.g. Rate Shocks
-) => {
-  return yShocks.map(y => {
-    return xShocks.map(x => {
-      // Create a temporary shock object for this cell
-      const cellShocks: MacroShocks = {
-        shortRateBps: y, // Assuming Y axis is rates
-        longRateBps: y,
-        fxShockPct: x,   // Assuming X axis is FX
-        fundingRatePct: 0, 
-        horizonDays: 0 // Instantaneous shock for grids
-      };
+export const calculateFxPnL = (pos: FxPosition, shocks: MacroShocks, baseUsdInr: number, base3mRate: number): PnLResult => {
+  const newSpot = baseUsdInr * (1 + (shocks.fxShockPct / 100));
+  const spotPnl = pos.notionalUsd * (newSpot - baseUsdInr);
+  
+  const domesticRate = base3mRate + (shocks.rate3mBps / 100); 
+  const spread = (domesticRate - 5.0 /* USD Funding Proxy */) / 100;
+  const carryPnl = (pos.notionalUsd * baseUsdInr) * spread * (shocks.horizonDays / 365);
+  
+  return { assetId: pos.id, pnl: spotPnl + carryPnl };
+};
 
-      let totalPnl = 0;
-      fiPositions.forEach(p => totalPnl += calculateBondPnL(p, y).pnl);
-      fxPositions.forEach(p => totalPnl += calculateFxPnL(p, cellShocks, baseUsdInr, base3mRate).pnl);
-      
-      return totalPnl;
-    });
-  });
+export const calculateEquityPnL = (pos: EquityPosition, shocks: MacroShocks): PnLResult => {
+  const pctChange = pos.beta * (shocks.equityShockPct / 100);
+  return { assetId: pos.id, pnl: pos.notionalInr * pctChange };
+};
+
+export const calculateCreditPnL = (pos: CreditPosition, shocks: MacroShocks): PnLResult => {
+  const shockMap = { '3m': shocks.rate3mBps, '2y': shocks.rate2yBps, '5y': shocks.rate5yBps, '10y': shocks.rate10yBps };
+  const rateDy = (shockMap[pos.bucket] || shocks.rate10yBps) / 10000;
+  const spreadDy = shocks.creditSpreadBps / 10000;
+  
+  const rateLoss = -pos.modifiedDuration * rateDy;
+  const spreadLoss = -pos.spreadDuration * spreadDy;
+  return { assetId: pos.id, pnl: pos.notionalInr * (rateLoss + spreadLoss) };
+};
+
+// NEW: Non-Linear Pricing (Delta-Gamma-Vega)
+export const calculateOptionPnL = (pos: OptionPosition, shocks: MacroShocks): PnLResult => {
+  const underlyingPctMove = shocks.equityShockPct / 100; // Assuming equity options for now
+  
+  const deltaPnL = pos.delta * underlyingPctMove;
+  const gammaPnL = 0.5 * pos.gamma * (underlyingPctMove ** 2);
+  const vegaPnL = pos.vega * shocks.volShockPts; // Vega is usually PnL per 1pt implied vol move
+  
+  const pctChange = deltaPnL + gammaPnL + vegaPnL;
+  return { assetId: pos.id, pnl: pos.notionalInr * pctChange };
+};
+
+export const calculateDiversificationBenefit = (directionalPnLs: number[]): number => {
+  const grossSum = directionalPnLs.reduce((acc, val) => acc + Math.abs(val), 0);
+  const netSum = Math.abs(directionalPnLs.reduce((acc, val) => acc + val, 0));
+  return grossSum - netSum; 
 };

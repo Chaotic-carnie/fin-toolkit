@@ -6,24 +6,15 @@ import { revalidatePath } from "next/cache";
 
 // --- 1. Refresh Market Data ---
 export async function refreshMarketData() {
-  // In a real app, this might fetch live from FRED API or Bloomberg
-  // For now, we re-read the CSV seed data to simulate a refresh
-  const timeline = getCombinedTimeline(1); // Get latest point
+  const timeline = getCombinedTimeline(1);
   const latest = timeline[timeline.length - 1];
-
   if (!latest) throw new Error("No market data available");
-
-  // Optional: Update a 'SystemStatus' table in DB if you track last refresh time
-  
-  revalidatePath("/macro"); // Force page to reload with new CSV data
+  revalidatePath("/macro");
   return { success: true, latest };
 }
 
 // --- 2. Calendar Events ---
 export async function fetchCalendarEvents(year: number) {
-  // You can seed this from a JSON file or DB. 
-  // Returning mock data for the example to work immediately.
-  
   const events2026 = [
     { id: "1", date: new Date("2026-01-28"), event: "FOMC Decision", impact: "HIGH", actual: "5.25%", consensus: "5.25%" },
     { id: "2", date: new Date("2026-02-14"), event: "US CPI (YoY)", impact: "HIGH", actual: "2.8%", consensus: "2.9%" },
@@ -38,9 +29,11 @@ export async function fetchCalendarEvents(year: number) {
     { id: "8", date: new Date("2025-11-04"), event: "US Election", impact: "HIGH", actual: "--", consensus: "--" },
   ];
 
-return { success: true, events: year === 2026 ? events2026 : events2025 };}
+  // Return specific year data
+  return { success: true, events: year === 2026 ? events2026 : events2025 };
+}
 
-// --- 3. Scenario Management (Already used in your components) ---
+// --- 3. Scenario Management ---
 export async function getScenarios() {
   try {
     const scenarios = await db.macroScenario.findMany({ orderBy: { createdAt: 'desc' } });
@@ -72,18 +65,15 @@ export async function deleteScenario(id: string) {
   }
 }
 
+// --- 4. Historical Returns (VaR Engine) ---
 export async function getHistoricalReturns() {
   try {
-    // 1. Try to load Real Data
-    const history = getCombinedTimeline(250); // Grab ~1 trading year
-
+    const history = getCombinedTimeline(250); 
     if (history && history.length > 10) {
       const returns = [];
       for (let i = 1; i < history.length; i++) {
         const today = history[i];
         const prev = history[i-1];
-        
-        // Ensure we have valid numbers
         if (today.rate_10y_pct && prev.rate_10y_pct && today.usdinr && prev.usdinr) {
             returns.push({
                 date: today.month,
@@ -96,21 +86,26 @@ export async function getHistoricalReturns() {
       return { success: true, data: returns };
     }
   } catch (e) {
-    console.warn("Failed to load historical CSVs, falling back to synthetic data.");
+    console.warn("Failed to load historical CSVs, generating fat-tail synthetic data.");
   }
 
-  // 2. Fallback: Generate Synthetic History (Gaussian Noise)
-  // This ensures the UI works even if you haven't set up the 'data_seed' folder perfectly yet.
+  // --- FAT TAIL SYNTHETIC GENERATOR ---
   const mockReturns = [];
   for (let i = 0; i < 250; i++) {
-    // Random Normal Distribution approx
+    // Standard Normal Gaussian
     const u = 1 - Math.random(); 
     const v = Math.random();
-    const z = Math.sqrt( -2.0 * Math.log( u ) ) * Math.cos( 2.0 * Math.PI * v );
+    let z = Math.sqrt( -2.0 * Math.log( u ) ) * Math.cos( 2.0 * Math.PI * v );
     
-    // Volatility Assumptions: Rates ±8bps daily, FX ±0.4% daily
+    // Jump Diffusion: 5% chance of a massive market panic (Fat Tails)
+    const isCrisisDay = Math.random() < 0.05;
+    if (isCrisisDay) {
+        z = z * (3 + Math.random() * 2); 
+    }
+
+    // Base Daily Vols: Rates ±8bps, FX ±0.4%
     mockReturns.push({
-        date: new Date().toISOString(),
+        date: new Date(Date.now() - (250 - i) * 86400000).toISOString(),
         d_10y: z * 8,       
         d_3m: z * 4,
         d_fx_pct: z * 0.4

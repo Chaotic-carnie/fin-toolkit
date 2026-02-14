@@ -1,76 +1,72 @@
 "use client";
 
 import { useMacroStore } from "../store";
-import { calculateBondPnL, calculateFxPnL } from "../engine";
+import { calculateBondPnL, calculateFxPnL, calculateEquityPnL, calculateCreditPnL, calculateOptionPnL } from "../engine";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, ReferenceLine } from "recharts";
 
 export function PnLAttribution() {
-  const { fiPositions, fxPositions, shocks, baseData } = useMacroStore();
+  const s = useMacroStore();
+  if (!s.hydrated) return <div className="text-xs text-slate-500">Loading Attribution...</div>;
 
-  // 1. Calculate Fixed Income P&L
-  const fiResults = fiPositions.map(pos => {
-    // Apply the correct shock based on the bucket (Short vs Long end of curve)
-    const shock = pos.bucket === 'short' ? shocks.shortRateBps : shocks.longRateBps;
-    const res = calculateBondPnL(pos, shock);
-    return { 
-      label: pos.label, 
-      type: 'Bond', 
-      pnl: res.pnl, 
-      impact: shock,
-      unit: 'bps'
-    };
-  });
+  let bond = 0, fx = 0, eq = 0, cr = 0, opt = 0;
+  s.fiPositions.forEach(p => bond += calculateBondPnL(p, s.shocks).pnl);
+  s.fxPositions.forEach(p => fx += calculateFxPnL(p, s.shocks, s.baseData.usdinr, s.baseData.inr3m).pnl);
+  s.eqPositions.forEach(p => eq += calculateEquityPnL(p, s.shocks).pnl);
+  s.crPositions.forEach(p => cr += calculateCreditPnL(p, s.shocks).pnl);
+  s.optPositions.forEach(p => opt += calculateOptionPnL(p, s.shocks).pnl);
 
-  // 2. Calculate FX P&L
-  const fxResults = fxPositions.map(pos => {
-    const res = calculateFxPnL(pos, shocks, baseData.usdinr, baseData.inr3m);
-    return { 
-      label: pos.label, 
-      type: 'FX', 
-      pnl: res.pnl, 
-      impact: shocks.fxShockPct,
-      unit: '%'
-    };
-  });
+  const data = [
+    { name: "Rates", value: bond },
+    { name: "FX", value: fx },
+    { name: "Equity", value: eq },
+    { name: "Credit", value: cr },
+    { name: "Volatility", value: opt },
+  ];
 
-  // 3. Merge and Sort by Magnitude (Biggest movers first)
-  const allItems = [...fiResults, ...fxResults].sort((a, b) => Math.abs(b.pnl) - Math.abs(a.pnl));
+  // If all values are exactly 0, Recharts collapses the X-Axis. This forces it open.
+  const isZeroed = data.every(d => d.value === 0);
 
   return (
-    <div className="h-full flex flex-col">
-        <div className="flex justify-between items-center mb-4 px-2">
-            <h4 className="text-sm font-semibold text-slate-200">P&L Attribution</h4>
-            <span className="text-[10px] text-slate-500 uppercase tracking-wider">Breakdown</span>
-        </div>
+    <div className="w-full h-full flex flex-col">
+       <div className="flex justify-between items-center mb-4">
+         <h4 className="text-sm font-semibold text-slate-300">Risk Attribution</h4>
+       </div>
+       <div className="flex-1 w-full min-h-0 -ml-4 relative">
+          
+          {isZeroed && (
+             <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+                <span className="text-xs text-slate-600 bg-slate-900/80 px-3 py-1 rounded-full">Apply shocks to view attribution</span>
+             </div>
+          )}
 
-        <div className="flex-1 overflow-y-auto dark-scrollbar pr-2">
-            <div className="space-y-2">
-                {allItems.map((item, i) => (
-                    <div key={i} className="flex items-center justify-between p-3 rounded-md bg-slate-900/40 border border-white/5 text-xs hover:bg-slate-800/60 transition-colors">
-                        <div>
-                            <div className="font-medium text-slate-300">{item.label}</div>
-                            <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-2">
-                                <span className={`px-1.5 py-0.5 rounded ${item.type === 'FX' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-blue-500/10 text-blue-500'}`}>
-                                    {item.type}
-                                </span>
-                                <span>
-                                   Shock: <span className="text-slate-400">{item.impact > 0 ? '+' : ''}{item.impact}{item.unit}</span>
-                                </span>
-                            </div>
-                        </div>
-                        <div className={`font-mono font-bold text-right ${item.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                            {item.pnl >= 0 ? '+' : ''}{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(item.pnl)}
-                        </div>
-                    </div>
-                ))}
-                
-                {allItems.length === 0 && (
-                    <div className="text-center text-slate-500 py-8 flex flex-col items-center">
-                        <span>No active positions.</span>
-                        <span className="text-[10px] mt-1 opacity-50">Add positions in the Engine to see attribution.</span>
-                    </div>
-                )}
-            </div>
-        </div>
+          <ResponsiveContainer width="100%" height="100%">
+             <BarChart data={data} layout="vertical" margin={{ top: 0, right: 20, left: 30, bottom: 0 }}>
+                {/* FIX: Set a default domain if everything is 0 */}
+                <XAxis type="number" hide domain={isZeroed ? [-100, 100] : ['auto', 'auto']} />
+                <YAxis dataKey="name" type="category" stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
+                <Tooltip 
+                  cursor={{ fill: '#1e293b', opacity: 0.4 }}
+                  content={({ active, payload }) => {
+                     if (active && payload && payload.length) {
+                       return (
+                         <div className="bg-slate-900 border border-slate-700 p-2 rounded text-xs text-slate-200">
+                           <span className="font-semibold">{payload[0].payload.name}: </span>
+                           <span className="font-mono">{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(payload[0].value as number)}</span>
+                         </div>
+                       );
+                     }
+                     return null;
+                  }}
+                />
+                <ReferenceLine x={0} stroke="#334155" />
+                <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={20}>
+                  {data.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.value >= 0 ? '#10b981' : '#f43f5e'} />
+                  ))}
+                </Bar>
+             </BarChart>
+          </ResponsiveContainer>
+       </div>
     </div>
   );
 }

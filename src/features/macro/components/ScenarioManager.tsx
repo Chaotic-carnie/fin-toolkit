@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Save, Trash2, Play, Loader2, FolderOpen } from "lucide-react";
 import { useMacroStore } from "../store";
-import { saveScenario, getScenarios, deleteScenario } from "@/app/macro/actions";
+import { saveScenario, getScenarios, deleteScenario } from "@/features/macro/actions";
 import { toast } from "sonner";
 import type { MacroScenario } from "@prisma/client";
 

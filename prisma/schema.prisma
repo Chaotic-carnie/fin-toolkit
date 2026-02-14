@@ -195,4 +195,7 @@ model PortfolioPosition {
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  
+  beta            Decimal? @default(1) // NEW
+  spreadDuration  Decimal? @default(0) // NEW
 }

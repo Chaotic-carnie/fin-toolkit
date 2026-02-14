@@ -18,38 +18,50 @@ async function getInitialData() {
     createdAt: new Date(),
   };
 
-  const positions = await db.portfolioPosition.findMany({
+  const rawPositions = await db.portfolioPosition.findMany({
     orderBy: { createdAt: 'desc' }
   });
 
-  // Default to 2026 to match your initial view
+  const positions = rawPositions.map(p => ({
+    ...p,
+    amount: Number(p.amount),
+    duration: Number(p.duration || 0),
+    convexity: Number(p.convexity || 0),
+    beta: Number(p.beta || 1),
+    spreadDuration: Number(p.spreadDuration || 0),
+  }));
+
   const { events } = await fetchCalendarEvents(2026);
 
-  return { snapshot, positions, events };
+  return { snapshot, positions: positions as any, events };
 }
 
 export default async function MacroPage() {
   const { snapshot, positions, events } = await getInitialData();
 
   return (
-    <main className="h-screen w-full bg-slate-950 overflow-y-auto dark-scrollbar">
-      {/* ADDED pt-24 to push content below fixed navbar */}
-      <div className="max-w-[1600px] mx-auto p-4 lg:p-6 pt-24 pb-20">
+    <main className="h-screen w-full bg-slate-950 flex flex-col pt-0 print:h-auto print:block print:pt-0">
+      
+      {/* 2. The inner div handles the scrolling. Because it starts BELOW the padding, it can never overlap the navbar! */}
+      <div className="flex-1 overflow-y-auto dark-scrollbar p-4 lg:p-6 print:overflow-visible">
         
-        <div className="mb-6 flex flex-col gap-1">
-          <h1 className="text-2xl font-bold tracking-tight text-white">Macro Risk Engine</h1>
-          <p className="text-sm text-slate-400">
-            Real-time stress testing of sovereign bonds and FX derivatives.
-          </p>
+        <div className="max-w-[1600px] mx-auto pb-20">
+          <div className="mb-6 flex flex-col gap-1">
+            <h1 className="text-3xl font-bold tracking-tight uppercase text-white">Macro Risk <span className="text-blue-600">Engine</span></h1>
+            <p className="text-sm text-slate-400">
+              Real-time stress testing of sovereign bonds, FX, equities, and credit.
+            </p>
+          </div>
+
+          <Suspense fallback={<div className="text-emerald-500 animate-pulse">Loading Quant Engine...</div>}>
+            <MacroClient 
+              snapshot={snapshot} 
+              positions={positions} 
+              events={events || []} 
+            />
+          </Suspense>
         </div>
 
-        <Suspense fallback={<div className="text-emerald-500 animate-pulse">Loading Quant Engine...</div>}>
-          <MacroClient 
-            snapshot={snapshot} 
-            positions={positions} 
-            events={events || []} 
-          />
-        </Suspense>
       </div>
     </main>
   );
