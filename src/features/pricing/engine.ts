@@ -32,6 +32,8 @@ export type PricingResult = {
   vega: number;
   theta: number;
   rho: number;
+  vanna: number; 
+  volga: number; 
 };
 
 // --- Solvers ---
@@ -185,33 +187,7 @@ const calculatePrice = (methodKey: string, inputs: any) => {
 export const computeResult = async (methodKey: string, instrumentKey: string, inputs: any): Promise<PricingResult> => {
   return new Promise((resolve) => {
     setTimeout(() => {
-      const baseInputs = { ...inputs, key: instrumentKey };
-      const price = calculatePrice(methodKey, baseInputs);
-
-      // Finite Difference Greeks
-      const dS = inputs.S * 0.01;
-      const dT = 1 / 365; // 1 Day
-      const dVol = 0.01;
-      const dR = 0.01;
-
-      const p_up = calculatePrice(methodKey, { ...baseInputs, S: inputs.S + dS });
-      const p_down = calculatePrice(methodKey, { ...baseInputs, S: inputs.S - dS });
-      
-      const p_vol = calculatePrice(methodKey, { ...baseInputs, sigma: inputs.sigma + dVol });
-      
-      // Theta: Price at (T - 1 day) - Current Price. 
-      // Correct interpretation: How much value is lost as one day passes.
-      const p_time = calculatePrice(methodKey, { ...baseInputs, T: inputs.T - dT });
-      
-      const p_rho = calculatePrice(methodKey, { ...baseInputs, r: inputs.r + dR });
-
-      const delta = (p_up - p_down) / (2 * dS);
-      const gamma = (p_up - 2 * price + p_down) / (dS ** 2);
-      const vega = (p_vol - price) / 100;
-      const theta = (p_time - price); 
-      const rho = (p_rho - price) / 100;
-
-      resolve({ price, delta, gamma, vega, theta, rho });
+      resolve(calculatePriceDetails(methodKey, instrumentKey, inputs));
     }, 50);
   });
 };
@@ -220,23 +196,57 @@ export const calculatePriceDetails = (methodKey: string, instrumentKey: string, 
     const baseInputs = { ...inputs, key: instrumentKey };
     const price = calculatePrice(methodKey, baseInputs);
 
-    // Finite Difference Greeks (Same logic as before)
+    // Finite Difference Bumps
     const dS = inputs.S * 0.01;
     const dT = 1 / 365; 
     const dVol = 0.01;
     const dR = 0.01;
 
+    // 1st Order Bumps
     const p_up = calculatePrice(methodKey, { ...baseInputs, S: inputs.S + dS });
     const p_down = calculatePrice(methodKey, { ...baseInputs, S: inputs.S - dS });
-    const p_vol = calculatePrice(methodKey, { ...baseInputs, sigma: inputs.sigma + dVol });
-    const p_time = calculatePrice(methodKey, { ...baseInputs, T: inputs.T - dT });
-    const p_rho = calculatePrice(methodKey, { ...baseInputs, r: inputs.r + dR });
+    const p_vol_up = calculatePrice(methodKey, { ...baseInputs, sigma: inputs.sigma + dVol });
+    const p_vol_down = calculatePrice(methodKey, { ...baseInputs, sigma: inputs.sigma - dVol });
+    const p_time_down = calculatePrice(methodKey, { ...baseInputs, T: inputs.T - dT }); // Renamed for clarity
+    const p_rho_up = calculatePrice(methodKey, { ...baseInputs, r: inputs.r + dR });
 
+    // 2nd Order Cross-Bumps (For Vanna & Volga)
+    // To find Vanna (dDelta/dVol), we need Delta at bumped Vol levels
+    const p_up_vol_up = calculatePrice(methodKey, { ...baseInputs, S: inputs.S + dS, sigma: inputs.sigma + dVol });
+    const p_down_vol_up = calculatePrice(methodKey, { ...baseInputs, S: inputs.S - dS, sigma: inputs.sigma + dVol });
+    
+    const p_up_vol_down = calculatePrice(methodKey, { ...baseInputs, S: inputs.S + dS, sigma: inputs.sigma - dVol });
+    const p_down_vol_down = calculatePrice(methodKey, { ...baseInputs, S: inputs.S - dS, sigma: inputs.sigma - dVol });
+
+    // Standard Greeks
     const delta = (p_up - p_down) / (2 * dS);
     const gamma = (p_up - 2 * price + p_down) / (dS ** 2);
-    const vega = (p_vol - price) / 100;
-    const theta = (p_time - price);
-    const rho = (p_rho - price) / 100;
+    const vega = (p_vol_up - p_vol_down) / (2 * dVol) / 100;
+    
+    // Theta is usually priced as (Price(T - dT) - Price(T)) / dT
+    // Assuming you want it as a daily decay based on your dT = 1/365
+    const theta = (p_time_down - price); 
+    const rho = (p_rho_up - price) / 100;
 
-    return { price, delta, gamma, vega, theta, rho };
+    // Higher-Order Greeks via Finite Difference
+    // 1. Calculate Delta at Vol Up and Vol Down
+    const delta_vol_up = (p_up_vol_up - p_down_vol_up) / (2 * dS);
+    const delta_vol_down = (p_up_vol_down - p_down_vol_down) / (2 * dS);
+    
+    // Vanna: d(Delta)/d(Vol)
+    const vanna = (delta_vol_up - delta_vol_down) / (2 * dVol) / 100;
+
+    // Volga: d2(Price)/d(Vol)2
+    const volga = (p_vol_up - 2 * price + p_vol_down) / (dVol ** 2) / 10000; // Scaled to match Vega's /100 convention
+
+    return { 
+        price, 
+        delta, 
+        gamma, 
+        vega, 
+        theta, 
+        rho, 
+        vanna: isNaN(vanna) ? 0 : vanna, 
+        volga: isNaN(volga) ? 0 : volga 
+    };
 };

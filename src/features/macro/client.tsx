@@ -22,6 +22,8 @@ import { ScenarioManager } from "./components/ScenarioManager";
 import { PortfolioManager } from "./components/PortfolioManager"; 
 import { VaRHistogram } from "./components/VaRHistogram";
 import { KeyRateSpider } from "./components/KeyRateSpider";
+// NEW: Import the Stress Packs Table we just built
+import { StressPacksTable } from "./components/StressPacksTable";
 
 // Store & Actions
 import { useMacroStore } from "./store";
@@ -42,8 +44,7 @@ export function MacroClient({ snapshot, events: serverEvents, positions }: Props
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
-  setBaseData({ usdinr: snapshot.usdinr, inr3m: snapshot.inr3m, inr10y: snapshot.inr10y });
-    // Removed setTimeout! State flows perfectly now.
+    setBaseData({ usdinr: snapshot.usdinr, inr3m: snapshot.inr3m, inr10y: snapshot.inr10y });
   }, [snapshot, setBaseData]);
 
   useEffect(() => {
@@ -81,16 +82,13 @@ export function MacroClient({ snapshot, events: serverEvents, positions }: Props
       setIsExporting(true);
       toast.info("Generating PDF... this might take a second.");
 
-      // 1. Wait a tick for Recharts animations to settle
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      // 2. Capture the DOM natively using html-to-image
       const dataUrl = await toPng(printArea, {
         quality: 1.0,
-        pixelRatio: 2, // High resolution
-        backgroundColor: "#020617", // Force solid dark background (slate-950)
+        pixelRatio: 2,
+        backgroundColor: "#020617", 
         filter: (node) => {
-          // Hide the export buttons from the final PDF
           if (node instanceof HTMLElement && node.dataset.html2canvasIgnore === "true") {
             return false;
           }
@@ -98,31 +96,25 @@ export function MacroClient({ snapshot, events: serverEvents, positions }: Props
         }
       });
       
-      // 3. Setup PDF
       const pdf = new jsPDF("p", "mm", "a4");
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
       
-      // Calculate aspect ratio height
       const pdfHeight = (printArea.offsetHeight * pdfWidth) / printArea.offsetWidth;
       
       let heightLeft = pdfHeight;
       let position = 0;
 
-      // Paint first page dark
       pdf.setFillColor(2, 6, 23); 
       pdf.rect(0, 0, pdfWidth, pageHeight, "F");
 
-      // Add image
       pdf.addImage(dataUrl, "PNG", 0, position, pdfWidth, pdfHeight);
       heightLeft -= pageHeight;
 
-      // Handle multi-page overflow
       while (heightLeft > 0) {
         position = heightLeft - pdfHeight;
         pdf.addPage();
         
-        // Paint subsequent pages dark
         pdf.setFillColor(2, 6, 23); 
         pdf.rect(0, 0, pdfWidth, pageHeight, "F");
         
@@ -240,7 +232,7 @@ export function MacroClient({ snapshot, events: serverEvents, positions }: Props
             </Card>
         </div>
 
-        {/* Yield Curve */}
+        {/* Yield Curve & Stress Replay */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 break-inside-avoid">
             <Card className="p-6 bg-slate-900 border-white/10 shadow-lg min-h-[300px]">
                <MacroChart />
@@ -251,6 +243,11 @@ export function MacroClient({ snapshot, events: serverEvents, positions }: Props
                </div>
                <HistoricalReplay />
             </Card>
+        </div>
+
+        {/* NEW: Stress Packs Table spans the full width at the bottom */}
+        <div className="break-inside-avoid dark-scrollbar">
+           <StressPacksTable />
         </div>
 
       </div>

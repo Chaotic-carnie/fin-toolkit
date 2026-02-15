@@ -34,8 +34,10 @@ export default function StrategyPage() {
   const [hasRun, setHasRun] = useState(false);
   const [candidates, setCandidates] = useState<any[]>([]);
   const [selIdx, setSelIdx] = useState(0);
-  // --- ADD THIS BLOCK ---
-  // 1. Restore state from previous session when component mounts
+  
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  // 1. Restore state from previous session
   useEffect(() => {
     const saved = sessionStorage.getItem("strategyBuilderState");
     if (saved) {
@@ -46,22 +48,28 @@ export default function StrategyPage() {
         setConstraints(parsed.constraints);
         setGen(parsed.gen);
         if (parsed.hasRun) setHasRun(true);
+        // FIX: Restore the actual results!
+        if (parsed.candidates) setCandidates(parsed.candidates);
+        if (parsed.selIdx !== undefined) setSelIdx(parsed.selIdx);
       } catch (e) {
         console.error("Failed to parse saved strategy state");
       }
     }
+    setIsHydrated(true);
   }, []);
 
-  // 2. Auto-save state to session storage whenever you change an input
+  // 2. Auto-save state to session storage
   useEffect(() => {
-    sessionStorage.setItem("strategyBuilderState", JSON.stringify({
-      market, view, constraints, gen, hasRun
-    }));
-  }, [market, view, constraints, gen, hasRun]);
-  // ----------------------
+    if (isHydrated) {
+      // FIX: Include candidates and selIdx in the save payload
+      sessionStorage.setItem("strategyBuilderState", JSON.stringify({
+        market, view, constraints, gen, hasRun, candidates, selIdx
+      }));
+    }
+  }, [market, view, constraints, gen, hasRun, candidates, selIdx, isHydrated]);
 
   // 2. Safe Parsing for Engine
-const parsedMarket = { spot: Number(market.spot)||0, vol: Number(market.vol)||0, rate: Number(market.rate)||0, dividend: Number(market.dividend)||0, skew: Number(market.skew)||0 };
+  const parsedMarket = { spot: Number(market.spot)||0, vol: Number(market.vol)||0, rate: Number(market.rate)||0, dividend: Number(market.dividend)||0, skew: Number(market.skew)||0 };
   const parsedView = {
     ...view, targetPrice: view.moveMode === "target" ? Number(view.targetPrice) || null : null,
     movePct: view.moveMode === "pct" ? Number(view.movePct) || 0 : undefined,
@@ -80,20 +88,18 @@ const parsedMarket = { spot: Number(market.spot)||0, vol: Number(market.vol)||0,
     setIsComputing(true);
     setHasRun(true);
 
-    // 1. Spawn a dedicated background thread
     const worker = new Worker(new URL("../../features/strategy/worker.ts", import.meta.url));
 
-    // 2. Listen for the finished math
     worker.onmessage = (e) => {
       if (e.data.error) {
         console.error("Engine Error:", e.data.error);
         alert("Failed to compute strategies. Check parameters.");
       } else {
         setCandidates(e.data.candidates);
-        setSelIdx(0); // Reset selection to the top candidate
+        setSelIdx(0); 
       }
       setIsComputing(false);
-      worker.terminate(); // Kill the worker to free up RAM
+      worker.terminate(); 
     };
 
     worker.onerror = (err) => {
@@ -102,7 +108,6 @@ const parsedMarket = { spot: Number(market.spot)||0, vol: Number(market.vol)||0,
       worker.terminate();
     };
 
-    // 3. Send the parsed inputs to the background thread
     worker.postMessage({
       market: parsedMarket,
       view: parsedView,
@@ -110,6 +115,8 @@ const parsedMarket = { spot: Number(market.spot)||0, vol: Number(market.vol)||0,
       constraints: parsedConstraints
     });
   };
+
+  if (!isHydrated) return null;
 
   return (
     <main className="flex flex-col h-screen pt-4 bg-[#020617] text-white overflow-hidden font-sans">
@@ -130,7 +137,6 @@ const parsedMarket = { spot: Number(market.spot)||0, vol: Number(market.vol)||0,
           </div>
 
           <div className="flex-1 overflow-y-auto p-5 space-y-6 dark-scrollbar bg-slate-950/20">
-            {/* Market */}
             <section>
               <SidebarHeader label="Market Inputs" icon={<Activity className="w-3.5 h-3.5"/>} color="text-blue-400" />
               <div className="grid grid-cols-2 gap-3 mt-3">
@@ -142,7 +148,6 @@ const parsedMarket = { spot: Number(market.spot)||0, vol: Number(market.vol)||0,
               </div>
             </section>
 
-            {/* View */}
             <section className="pt-2 border-t border-slate-800/40">
               <SidebarHeader label="View & Horizon" icon={<TrendingUp className="w-3.5 h-3.5"/>} color="text-emerald-400" />
               <div className="space-y-4 mt-3">
@@ -174,7 +179,6 @@ const parsedMarket = { spot: Number(market.spot)||0, vol: Number(market.vol)||0,
               </div>
             </section>
 
-            {/* Constraints */}
             <section className="pt-2 border-t border-slate-800/40">
               <SidebarHeader label="Constraints" icon={<Target className="w-3.5 h-3.5"/>} color="text-rose-400" />
               <div className="grid grid-cols-2 gap-3 mt-3 mb-4">
@@ -205,7 +209,6 @@ const parsedMarket = { spot: Number(market.spot)||0, vol: Number(market.vol)||0,
               </div>
             </section>
 
-            {/* Construction */}
             <section className="pt-2 border-t border-slate-800/40">
               <SidebarHeader label="Construction" icon={<Settings2 className="w-3.5 h-3.5"/>} color="text-purple-400" />
               <div className="grid grid-cols-2 gap-3 mt-3">
@@ -222,7 +225,6 @@ const parsedMarket = { spot: Number(market.spot)||0, vol: Number(market.vol)||0,
               </div>
             </section>
 
-            {/* Explicit Spacer to ensure bottom padding works */}
             <div className="pb-20 shrink-0" />
           </div>
         </aside>
@@ -230,7 +232,6 @@ const parsedMarket = { spot: Number(market.spot)||0, vol: Number(market.vol)||0,
         {/* ================= RIGHT MAIN AREA (TABS) ================= */}
         <section className="flex-1 flex flex-col min-w-0 bg-[#020617]">
           
-          {/* Main Workspace Header */}
           <div className="shrink-0 px-8 py-5 border-b border-slate-800/60 bg-[#020617] flex justify-between items-end">
             <div>
               <h1 className="text-3xl font-black uppercase tracking-tighter text-white flex items-center gap-3">
@@ -251,19 +252,19 @@ const parsedMarket = { spot: Number(market.spot)||0, vol: Number(market.vol)||0,
             
             <div className="shrink-0 px-8 pt-4 border-b border-slate-800/60 bg-[#020617]">
               <TabsList className="bg-transparent h-10 gap-8 px-0 justify-start">
-                <TabsTrigger value="candidates" className="uppercase text-[11px] font-bold tracking-widest data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-blue-500 data-[state=active]:text-white rounded-none pb-3 text-slate-500 hover:text-slate-300 hover:bg-transparent transition-colors">
+                {/* FIX: Important (!) modifiers force Tailwind to override Shadcn's built-in light-theme defaults */}
+                <TabsTrigger value="candidates" className="uppercase text-[11px] font-bold tracking-widest !bg-transparent !shadow-none !border-none !outline-none focus-visible:!ring-0 focus-visible:!ring-offset-0 data-[state=active]:!bg-transparent data-[state=active]:!text-white rounded-none pb-3 text-slate-500 hover:!text-slate-300 hover:!bg-transparent transition-colors">
                   <ListChecks className="w-3.5 h-3.5 mr-2" /> Candidates
                 </TabsTrigger>
-                <TabsTrigger value="scenarios" disabled={!hasRun} className="uppercase text-[11px] font-bold tracking-widest data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-blue-500 data-[state=active]:text-white rounded-none pb-3 text-slate-500 hover:text-slate-300 hover:bg-transparent transition-colors disabled:opacity-50 disabled:hover:text-slate-500">
+                <TabsTrigger value="scenarios" disabled={!hasRun || candidates.length === 0} className="uppercase text-[11px] font-bold tracking-widest !bg-transparent !shadow-none !border-none !outline-none focus-visible:!ring-0 focus-visible:!ring-offset-0 data-[state=active]:!bg-transparent data-[state=active]:!text-white rounded-none pb-3 text-slate-500 hover:!text-slate-300 hover:!bg-transparent transition-colors disabled:opacity-50 disabled:hover:!text-slate-500">
                   <BarChart3 className="w-3.5 h-3.5 mr-2" /> Scenarios
                 </TabsTrigger>
               </TabsList>
             </div>
 
-            {/* TAB CONTENT: CANDIDATES */}
             <TabsContent value="candidates" className="flex-1 overflow-y-auto p-8 dark-scrollbar mt-0">
               <div className="max-w-[1000px] mx-auto">
-                {!hasRun ? (
+                {!hasRun || candidates.length === 0 ? (
                   <div className="h-[400px] flex items-center justify-center text-slate-500 text-sm font-bold uppercase tracking-widest">
                     Set parameters and click "Find Candidates"
                   </div>
@@ -272,7 +273,7 @@ const parsedMarket = { spot: Number(market.spot)||0, vol: Number(market.vol)||0,
                     <div className="text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-4">Showing Top {candidates.length} Matches</div>
                     {candidates.map((c, i) => (
                       <ReplicaCandidateCard 
-                        key={c.candidate_id} 
+                        key={c.candidate_id || i} 
                         cand={c} 
                         idx={i} 
                         active={selIdx === i} 
@@ -280,14 +281,12 @@ const parsedMarket = { spot: Number(market.spot)||0, vol: Number(market.vol)||0,
                         method={gen.method}
                       />
                     ))}
-                    {/* Explicit Spacer for scrolling past the last card */}
                     <div className="h-32 shrink-0" />
                   </div>
                 )}
               </div>
             </TabsContent>
 
-            {/* TAB CONTENT: SCENARIOS */}
             <TabsContent value="scenarios" className="flex-1 overflow-y-auto p-8 dark-scrollbar mt-0">
               {active ? (
                 <ScenarioAnalysisDashboard 
@@ -298,7 +297,7 @@ const parsedMarket = { spot: Number(market.spot)||0, vol: Number(market.vol)||0,
                 />
               ) : (
                  <div className="flex h-[400px] items-center justify-center text-slate-500 text-sm font-bold uppercase tracking-widest">
-                    No active strategy selected.
+                   No active strategy selected.
                  </div>
               )}
             </TabsContent>
@@ -354,7 +353,6 @@ function ReplicaCandidateCard({ cand, idx, active, onClick, method }: any) {
             {isDefinedRisk ? 'Defined Risk' : 'Undefined Risk'}
          </Badge>
          
-         {/* NEW: Probability of Profit Badge */}
          {cand.pop && (
            <Badge variant="outline" className={`text-[9px] uppercase tracking-widest px-1.5 py-0.5 border-white/10 ${cand.pop > 50 ? 'text-cyan-400 bg-cyan-400/10' : 'text-slate-400 bg-slate-800'}`}>
              POP: {cand.pop.toFixed(1)}%
@@ -435,14 +433,11 @@ function CommitField({ label, value, onCommit, disabled, placeholder }: any) {
 /* ================= SCENARIO ANALYSIS COMPONENTS ================= */
 
 function ScenarioAnalysisDashboard({ cand, market, view, gen }: any) {
-  // 1. Local State to hold and tweak legs independently from the Recommender
   const [customLegs, setCustomLegs] = useState(cand.legs);
   const [isCommitting, setIsCommitting] = useState(false);
   
-  // Sync if user clicks a different candidate in the list
   useEffect(() => { setCustomLegs(cand.legs); }, [cand]);
 
-  // 2. Real-time Recalculation of the customized strategy
   const analyzed = useMemo(() => {
     const { metrics } = computePortfolioMetrics(customLegs, 0, 0, 0);
     const premium = metrics?.totalValue || 0;
@@ -454,7 +449,6 @@ function ScenarioAnalysisDashboard({ cand, market, view, gen }: any) {
     return { premium, greeks, ...pnlStats, norm };
   }, [customLegs, market, view]);
 
-  // 3. Chart & Table Data Engine
   const analysis = useMemo(() => {
     const { norm } = analyzed;
     const spots: number[] = [];
@@ -490,7 +484,6 @@ function ScenarioAnalysisDashboard({ cand, market, view, gen }: any) {
     return { payoffData, horizonData, legDetails };
   }, [customLegs, analyzed, market]);
 
-  // 4. Update Handler for the Tweaker
   const updateLeg = (index: number, field: string, value: any) => {
     const newLegs = [...customLegs];
     if (field === "quantity") newLegs[index].quantity = value;
@@ -499,26 +492,21 @@ function ScenarioAnalysisDashboard({ cand, market, view, gen }: any) {
     setCustomLegs(newLegs);
   };
 
-  // NEW: The Integration Handler
-  // NEW: The Integration Handler
   const handleCommitToPortfolio = () => {
     setIsCommitting(true);
     
-    // 1. Assign fresh UUIDs so React doesn't throw Duplicate Key errors in the grid
     const portfolioPayload = customLegs.map((leg: any) => ({
       ...leg,
       id: crypto.randomUUID(), 
       tags: [...(leg.tags || []), `Builder: ${cand.name}`]
     }));
 
-    // 2. Dispatch using your store's built-in group action!
     usePortfolioStore.getState().addStrategy(
-      `${cand.name} (Custom)`, // The Strategy Group Name
-      portfolioPayload,        // The array of freshly generated legs
-      cand.name                // Strategy Type
+      `${cand.name} (Custom)`, 
+      portfolioPayload,        
+      cand.name                
     );
 
-    // 3. UI Feedback
     setTimeout(() => {
       setIsCommitting(false);
       alert(`Successfully committed ${customLegs.length} legs to Portfolio as a grouped strategy!`);
@@ -528,7 +516,6 @@ function ScenarioAnalysisDashboard({ cand, market, view, gen }: any) {
   return (
     <div className="max-w-[1200px] mx-auto space-y-6">
       
-      {/* Header with Live Calculated Stats */}
       <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-6 relative overflow-hidden">
         <div className="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
         <div className="flex justify-between items-start mb-6">
@@ -562,7 +549,6 @@ function ScenarioAnalysisDashboard({ cand, market, view, gen }: any) {
         </div>
       </div>
 
-      {/* Interactive Legs Table */}
       <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-6">
         <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-4">Structure Legs (Editable)</h3>
         <Table>
@@ -604,19 +590,20 @@ function ScenarioAnalysisDashboard({ cand, market, view, gen }: any) {
         </Table>
       </div>
 
-      {/* Greeks Grid */}
       <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-6">
         <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-4">Greeks (Total)</h3>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 font-mono">
+        {/* Adjusted to grid-cols-7 to fit Vanna & Volga */}
+        <div className="grid grid-cols-2 md:grid-cols-7 gap-3 font-mono">
            <GreekStat label="Δ Delta" value={analyzed.greeks.delta} type="delta" />
            <GreekStat label="Γ Gamma" value={analyzed.greeks.gamma} type="gamma" />
            <GreekStat label="ν Vega" value={analyzed.greeks.vega} type="vega" />
            <GreekStat label="θ Theta" value={analyzed.greeks.theta} type="theta" />
            <GreekStat label="ρ Rho" value={analyzed.greeks.rho} type="rho" />
+           <GreekStat label="Vanna" value={analyzed.greeks.vanna} type="vanna" />
+           <GreekStat label="Volga" value={analyzed.greeks.volga} type="volga" />
         </div>
       </div>
 
-      {/* Charts */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-6 h-[400px] flex flex-col">
           <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-4">Payoff (Expiry) P&L</h3>
@@ -632,7 +619,6 @@ function ScenarioAnalysisDashboard({ cand, market, view, gen }: any) {
         </div>
       </div>
 
-      {/* Analytics Packs */}
       <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-6">
         <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-4">Spot × Vol Heatmap (At Horizon)</h3>
         <ScenarioHeatmap legs={customLegs} market={market} initialPremium={analyzed.premium} view={view} />
@@ -686,11 +672,10 @@ function TweakerCell({ value, onChange, step = 1 }: any) {
 }
 
 // Shadcn/Recharts Component
-function InteractiveLineChart({ data, spot }: { data: any[], spot: number }) {
+function InteractiveLineChart({ data, spot, color }: { data: any[], spot: number, color: string }) {
   const min = Math.min(...data.map(d => d.value));
   const max = Math.max(...data.map(d => d.value));
   
-  // Calculate exactly where 0 crosses to split the gradient
   const gradientOffset = () => {
     const dataMax = max;
     const dataMin = min;
@@ -704,11 +689,11 @@ function InteractiveLineChart({ data, spot }: { data: any[], spot: number }) {
     <ResponsiveContainer width="100%" height="100%">
       <AreaChart data={data}>
         <defs>
-          <linearGradient id="splitColor" x1="0" y1="0" x2="0" y2="1">
+          <linearGradient id={`splitColor-${color}`} x1="0" y1="0" x2="0" y2="1">
             <stop offset={off} stopColor="#10b981" stopOpacity={0.3} />
             <stop offset={off} stopColor="#f43f5e" stopOpacity={0.3} />
           </linearGradient>
-          <linearGradient id="splitStroke" x1="0" y1="0" x2="0" y2="1">
+          <linearGradient id={`splitStroke-${color}`} x1="0" y1="0" x2="0" y2="1">
             <stop offset={off} stopColor="#10b981" stopOpacity={1} />
             <stop offset={off} stopColor="#f43f5e" stopOpacity={1} />
           </linearGradient>
@@ -730,9 +715,9 @@ function InteractiveLineChart({ data, spot }: { data: any[], spot: number }) {
         <Area 
           type="monotone" 
           dataKey="value" 
-          stroke="url(#splitStroke)" 
+          stroke={`url(#splitStroke-${color})`} 
           strokeWidth={2}
-          fill="url(#splitColor)" 
+          fill={`url(#splitColor-${color})`} 
           isAnimationActive={false} 
         />
       </AreaChart>
@@ -740,7 +725,6 @@ function InteractiveLineChart({ data, spot }: { data: any[], spot: number }) {
   );
 }
 
-// Exactly matching the requested scenario rows
 function ScenarioPackTable({ cand, market, view }: any) {
   const scenarios = [
     { label: "Spot -10%", ds: -10, dv: 0, dr: 0 },
@@ -863,16 +847,17 @@ function ScenarioHeatmap({ legs, market, initialPremium, view }: any) {
 }
 
 function GreekStat({ label, value, type }: { label: string, value: number, type: string }) {
-  // Meaningful Semantic Coloring
   let color = "text-white";
   if (Math.abs(value) < 0.0001) {
-    color = "text-slate-500"; // Neutral/Zero
+    color = "text-slate-500"; 
   } else {
-    if (type === "delta") color = value > 0 ? "text-emerald-400" : "text-rose-400"; // Directional
-    else if (type === "gamma") color = value > 0 ? "text-cyan-400" : "text-orange-400"; // Convexity
-    else if (type === "vega") color = value > 0 ? "text-purple-400" : "text-amber-400"; // Volatility
-    else if (type === "theta") color = value > 0 ? "text-emerald-400" : "text-rose-400"; // Time Decay
-    else if (type === "rho") color = value > 0 ? "text-blue-400" : "text-red-400"; // Rates
+    if (type === "delta") color = value > 0 ? "text-emerald-400" : "text-rose-400"; 
+    else if (type === "gamma") color = value > 0 ? "text-cyan-400" : "text-orange-400"; 
+    else if (type === "vega") color = value > 0 ? "text-purple-400" : "text-amber-400";
+    else if (type === "theta") color = value > 0 ? "text-emerald-400" : "text-rose-400"; 
+    else if (type === "rho") color = value > 0 ? "text-blue-400" : "text-red-400"; 
+    else if (type === "vanna") color = value > 0 ? "text-fuchsia-400" : "text-pink-400";
+    else if (type === "volga") color = value > 0 ? "text-indigo-400" : "text-violet-400";
   }
 
   return (

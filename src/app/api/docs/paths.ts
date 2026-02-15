@@ -247,5 +247,48 @@ export const strategyPaths = {
         }
       }
     }
+  },
+  '/api/strategy/scenario': {
+    post: {
+      summary: 'Generate Scenario Pack Analysis',
+      description: 'Calculates the PnL of a given options structure under various spot, volatility, and interest rate shocks at the target horizon date.',
+      tags: ['Strategy Builder'],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: { $ref: '#/components/schemas/StrategyScenarioRequest' },
+            examples: {
+              StandardStress: {
+                summary: 'Standard 8-Scenario Stress Test',
+                value: {
+                  market: { spot: 100, vol: 0.2, rate: 0.03, dividend: 0, skew: 0.15 },
+                  view: { direction: 'bullish', moveMode: 'pct', movePct: 5, horizonDays: 30, volView: 'flat', volShift: 0, event: false },
+                  net_premium: 2.50,
+                  legs: [
+                    {
+                      quantity: 1,
+                      instrument: 'vanilla',
+                      active: true,
+                      params: { strike: 100, time_to_expiry: 0.25, option_type: 'call', vol: 0.2, risk_free_rate: 0.03 }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      responses: {
+        '200': {
+          description: 'Calculated scenarios with PnL',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/StrategyScenarioResponse' }
+            }
+          }
+        }
+      }
+    }
   }
 };

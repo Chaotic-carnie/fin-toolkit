@@ -335,5 +335,56 @@ export const strategySchemas = {
       gen: { $ref: '#/components/schemas/StrategyGenInput' }
     },
     required: ['market', 'view', 'constraints', 'gen']
+  },
+  StrategyScenarioRequest: {
+    type: 'object',
+    properties: {
+      market: { $ref: '#/components/schemas/StrategyMarketInput' },
+      view: { $ref: '#/components/schemas/StrategyViewInput' },
+      legs: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            quantity: { type: 'number', description: 'Positive for long, negative for short' },
+            instrument: { type: 'string', example: 'vanilla' },
+            active: { type: 'boolean', default: true },
+            params: {
+              type: 'object',
+              properties: {
+                strike: { type: 'number' },
+                time_to_expiry: { type: 'number' },
+                option_type: { type: 'string', enum: ['call', 'put'] },
+                vol: { type: 'number' },
+                risk_free_rate: { type: 'number' }
+              },
+              required: ['strike', 'time_to_expiry', 'option_type', 'vol']
+            }
+          }
+        }
+      },
+      net_premium: { type: 'number', description: 'The initial cost/credit of the strategy' }
+    },
+    required: ['market', 'view', 'legs', 'net_premium']
+  },
+
+  StrategyScenarioResponse: {
+    type: 'object',
+    properties: {
+      scenarios: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            label: { type: 'string', example: 'Spot +5%' },
+            ds: { type: 'number', description: 'Spot shock %' },
+            dv: { type: 'number', description: 'Vol shock (absolute)' },
+            dr: { type: 'number', description: 'Rate shock (basis points)' },
+            totalValue: { type: 'number', description: 'Total portfolio value post-shock' },
+            pnl: { type: 'number', description: 'PnL relative to initial net premium' }
+          }
+        }
+      }
+    }
   }
 };

@@ -11,6 +11,7 @@ const NAV_LINKS = [
   { name: "Strategy", href: "/strategy" },
   { name: "Macro", href: "/macro" },
   { name: "Tax", href: "/tax" },
+  { name: "Scenario", href: "/scenario" },
 ];
 
 export function Navbar() {
