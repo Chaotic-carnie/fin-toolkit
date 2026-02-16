@@ -15,6 +15,11 @@ import { usePortfolioStore } from "~/features/portfolio/store";
 import { useSearchParams, useRouter } from "next/navigation";
 import Joyride, { Step, CallBackProps, STATUS, ACTIONS, EVENTS } from "react-joyride";
 import { Presentation } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
+import { jsPDF } from "jspdf";
+import { toJpeg } from "html-to-image"; // Changed from toPng
+import { toast } from "sonner";
+import { useRef } from "react";
 
 // --- Tour Steps ---
 const TOUR_STEPS: Step[] = [
@@ -219,11 +224,107 @@ export default function StrategyPage() {
     });
   };
 
-  if (!isHydrated) return null;
+
+
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const reportRef = useRef<HTMLDivElement>(null);
+
+  // --- PDF Logic: trigger this to start the process ---
+  // --- PDF Export Logic (Optimized & Paginated) ---
+  // --- PDF Export Logic (Clean & Optimized) ---
+  const handleExportPDF = () => {
+    setIsGeneratingPdf(true); 
+  };
+
+  useEffect(() => {
+    if (!isGeneratingPdf) return;
+
+    const generate = async () => {
+      const reportContainer = reportRef.current;
+      if (!reportContainer) return;
+
+      try {
+        toast.info("Generating report... (Please wait)");
+        
+        // 1. Wait for Charts to Render (Critical for Ghost Report)
+        await new Promise(resolve => setTimeout(resolve, 2500));
+
+        const pdf = new jsPDF("p", "mm", "a4");
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        
+        const sections = reportContainer.querySelectorAll(".report-section");
+
+        for (let i = 0; i < sections.length; i++) {
+          const section = sections[i] as HTMLElement;
+          
+          // Breathing room for UI
+          await new Promise(resolve => setTimeout(resolve, 100));
+
+          // 2. Capture as JPEG
+          const dataUrl = await toJpeg(section, {
+            quality: 0.8,
+            pixelRatio: 2,
+            backgroundColor: "#020617",
+            width: 1000,
+            style: { 
+                fontFamily: 'sans-serif',
+                overflow: 'hidden' 
+            }
+          });
+
+          // --- SAFETY CHECK: Verify Data URL ---
+          if (!dataUrl || dataUrl === 'data:,') {
+             console.warn(`Skipping empty section index ${i}`);
+             continue;
+          }
+
+          const imgProps = pdf.getImageProperties(dataUrl);
+          const imgHeight = (imgProps.height * pageWidth) / imgProps.width;
+          
+          // 3. Pagination Logic
+          let heightLeft = imgHeight;
+          let position = 0;
+          let firstPageOfSection = true;
+
+          while (heightLeft > 0) {
+            // Add new page if needed
+            if (i > 0 || !firstPageOfSection) {
+               pdf.addPage();
+            }
+            
+            // Background
+            pdf.setFillColor(2, 6, 23);
+            pdf.rect(0, 0, pageWidth, pageHeight, "F");
+
+            // Render Image
+            pdf.addImage(dataUrl, "JPEG", 0, position, pageWidth, imgHeight);
+            
+            heightLeft -= pageHeight;
+            position -= pageHeight; 
+            firstPageOfSection = false;
+          }
+        }
+
+        const dateStr = new Date().toISOString().split('T')[0];
+        pdf.save(`Strategy_Report_${dateStr}.pdf`);
+        toast.success("PDF Exported Successfully");
+
+      } catch (err) {
+        console.error("PDF Gen Error:", err);
+        toast.error("Failed to generate report. Check console.");
+      } finally {
+        setIsGeneratingPdf(false);
+      }
+    };
+
+    generate();
+  }, [isGeneratingPdf]);
+
+    if (!isHydrated) return null;
 
   return (
-    <main className="flex flex-col h-screen overflow-hidden pt-28 lg:pt-2 bg-[#020617] text-white font-sans">
-      
+<main className="flex flex-col h-screen overflow-hidden pt-28 lg:pt-2 bg-[#020617] text-white font-sans">      
       {/* --- JOYRIDE COMPONENT --- */}
       <Joyride
         callback={handleJoyrideCallback}
@@ -277,9 +378,9 @@ export default function StrategyPage() {
             </div>
           </div>
 
-          {/* Added ID 'sidebar-scroll' for desktop scroll tracking */}
-          <div id="sidebar-scroll" className="flex-1 xl:overflow-y-auto p-4 md:p-5 space-y-6 dark-scrollbar bg-transparent xl:bg-slate-950/20 scroll-smooth">
-            
+          {/* Added js-print-scroll class */}
+<div id="sidebar-scroll" className="flex-1 xl:overflow-y-auto p-4 md:p-5 space-y-6 dark-scrollbar bg-transparent xl:bg-slate-950/20 scroll-smooth js-print-scroll">
+
             {/* FIX 1: Added -mt-2 pt-2 to shift the spotlight up */}
             <section className="tour-market-inputs rounded-lg p-2 -mt-2 pt-2 -mx-2">
               <SidebarHeader label="Market Inputs" icon={<Activity className="w-3.5 h-3.5"/>} color="text-blue-400" />
@@ -386,10 +487,25 @@ export default function StrategyPage() {
                 <Layers className="w-3 h-3 text-blue-500" /> Options Discovery & Analysis Engine
               </p>
             </div>
+            <div className="flex items-center gap-3">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="h-7 text-[9px] uppercase font-bold text-emerald-400 border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors"
+                onClick={handleExportPDF}
+                disabled={isGeneratingPdf} // CHANGED: was isExporting
+                data-html2canvas-ignore="true"
+              >
+                {/* CHANGED: was isExporting */}
+                {isGeneratingPdf ? <Loader2 className="w-3 h-3 mr-1.5 animate-spin" /> : <Download className="w-3 h-3 mr-1.5" />}
+                {/* CHANGED: was isExporting */}
+                {isGeneratingPdf ? "Generating..." : "Export Report"}
+              </Button>
             <div className="hidden lg:block">
               <span className="text-[10px] font-mono text-slate-500 bg-white/5 px-2 py-1 rounded border border-white/10 tracking-widest">
                 QUANT ENVIRONMENT
               </span>
+            </div>
             </div>
           </div>
 
@@ -406,8 +522,7 @@ export default function StrategyPage() {
               </TabsList>
             </div>
 
-            <TabsContent value="candidates" className="tour-candidate-results flex-1 xl:overflow-y-auto p-4 md:p-8 dark-scrollbar mt-0">
-              <div className="max-w-[1000px] mx-auto">
+<TabsContent value="candidates" className="tour-candidate-results flex-1 xl:overflow-y-auto p-4 md:p-8 dark-scrollbar mt-0 js-print-scroll">              <div className="max-w-[1000px] mx-auto">
                 {!hasRun || candidates.length === 0 ? (
                   <div className="h-[300px] md:h-[400px] flex items-center justify-center text-slate-500 text-xs md:text-sm font-bold uppercase tracking-widest text-center px-4">
                     Set parameters and click "Find Candidates"
@@ -431,7 +546,7 @@ export default function StrategyPage() {
               </div>
             </TabsContent>
 
-            <TabsContent value="scenarios" className="flex-1 xl:overflow-y-auto p-4 md:p-8 dark-scrollbar mt-0">
+            <TabsContent value="scenarios" className="flex-1 xl:overflow-y-auto p-4 md:p-8 dark-scrollbar mt-0 js-print-scroll">
               {active ? (
                 <ScenarioAnalysisDashboard 
                   cand={active} 
@@ -449,6 +564,102 @@ export default function StrategyPage() {
           </Tabs>
         </section>
       </div>
+      {/* ================= GHOST REPORT (OFF-SCREEN) ================= */}
+      {isGeneratingPdf && (
+        <div 
+          ref={reportRef} 
+          style={{ 
+            position: 'fixed', 
+            top: 0, 
+            left:0, 
+            width: '1000px', 
+            zIndex: -50,
+            opacity: 0,
+            pointerEvents: 'none'
+          }}
+          className="bg-[#020617] text-white font-sans"
+        >
+          {/* CSS TO REMOVE SCROLLBARS FROM PDF */}
+          <style>{`
+            .report-section ::-webkit-scrollbar { display: none; }
+            .report-section { -ms-overflow-style: none; scrollbar-width: none; }
+          `}</style>
+          
+          {/* --- SECTION 1: SUMMARY --- */}
+          <div className="report-section p-10 flex flex-col gap-8 bg-[#020617] min-h-screen">
+             {/* ... (Keep your existing Summary Content) ... */}
+             <div className="border-b border-blue-500/30 pb-6 mb-4">
+                <h1 className="text-4xl font-black uppercase tracking-tighter text-white">Strategy <span className="text-blue-500">Report</span></h1>
+                <p className="text-slate-400 font-bold tracking-widest mt-2 uppercase">Generated on {new Date().toLocaleDateString()}</p>
+             </div>
+
+             <div className="grid grid-cols-2 gap-8">
+                <div className="p-6 rounded-2xl bg-slate-900/50 border border-slate-800">
+                   <h3 className="text-emerald-400 font-black uppercase tracking-widest mb-4 border-b border-emerald-500/20 pb-2">Market Data</h3>
+                   <div className="space-y-2 font-mono text-sm">
+                      <div className="flex justify-between"><span>Spot:</span> <span className="text-white">{parsedMarket.spot}</span></div>
+                      <div className="flex justify-between"><span>Vol (IV):</span> <span className="text-white">{(parsedMarket.vol * 100).toFixed(1)}%</span></div>
+                      <div className="flex justify-between"><span>Rate:</span> <span className="text-white">{(parsedMarket.rate * 100).toFixed(1)}%</span></div>
+                   </div>
+                </div>
+                <div className="p-6 rounded-2xl bg-slate-900/50 border border-slate-800">
+                   <h3 className="text-blue-400 font-black uppercase tracking-widest mb-4 border-b border-blue-500/20 pb-2">View & Constraints</h3>
+                   <div className="space-y-2 font-mono text-sm">
+                      <div className="flex justify-between"><span>Direction:</span> <span className="text-white uppercase">{view.direction}</span></div>
+                      <div className="flex justify-between"><span>Target:</span> <span className="text-white">{view.moveMode === 'target' ? view.targetPrice : `+${view.movePct}%`}</span></div>
+                      <div className="flex justify-between"><span>Horizon:</span> <span className="text-white">{view.horizonDays} Days</span></div>
+                   </div>
+                </div>
+             </div>
+
+             <div className="mt-4">
+                <h3 className="text-xl font-black uppercase tracking-widest text-slate-300 mb-6">Top 5 Candidates</h3>
+                <div className="space-y-4">
+                   {candidates.slice(0, 5).map((c, i) => (
+                      <div key={i} className="flex items-center justify-between p-4 bg-slate-900/40 border border-slate-800 rounded-xl">
+                         <div className="flex items-center gap-4">
+                            <span className="text-2xl font-black text-slate-600">0{i+1}</span>
+                            <div>
+                               <div className="font-bold text-lg text-white">{c.name}</div>
+                               <div className="text-xs text-slate-400 uppercase tracking-wider">{c.rationale}</div>
+                            </div>
+                         </div>
+                         <div className="text-right">
+                            <div className="text-emerald-400 font-mono font-bold">{c.fit_score} Score</div>
+                            <div className="text-xs text-slate-500">Max PnL: {c.max_profit?.toFixed(2) || 'Inf'}</div>
+                         </div>
+                      </div>
+                   ))}
+                </div>
+             </div>
+          </div>
+
+          {/* --- SECTIONS 2-6: INDIVIDUAL SCENARIOS --- */}
+          {candidates.slice(0, 5).map((cand, i) => (
+             <div key={cand.id || i} className="report-section p-10 flex flex-col bg-[#020617] border-t-4 border-slate-800 min-h-screen">
+                <div className="mb-8 flex items-center justify-between">
+                   <h2 className="text-3xl font-black text-white flex items-center gap-4">
+                      <span className="bg-blue-600 text-white px-3 py-1 rounded text-xl">#{i+1}</span>
+                      {cand.name}
+                   </h2>
+                   <span className="font-mono text-slate-500">Detailed Analysis</span>
+                </div>
+                
+                <div className="space-y-8">
+                   <div className="p-6 bg-slate-900/40 border border-slate-800 rounded-xl">
+                      <ScenarioAnalysisDashboard 
+                          cand={cand}
+                          market={parsedMarket}
+                          view={parsedView}
+                          gen={parsedGen}
+                      />
+                   </div>
+                </div>
+             </div>
+          ))}
+
+        </div>
+      )}
     </main>
   );
 }
@@ -759,14 +970,14 @@ function ScenarioAnalysisDashboard({ cand, market, view, gen }: any) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
         <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-4 md:p-6 h-[300px] md:h-[400px] flex flex-col">
           <h3 className="text-[10px] md:text-[11px] font-black uppercase tracking-widest text-slate-400 mb-4">Payoff (Expiry) P&L</h3>
-          <div className="flex-1 min-h-0">
+          <div className="h-[300px] w-full"> 
             <InteractiveLineChart data={analysis.payoffData} spot={market.spot} color="#3b82f6" />
           </div>
         </div>
         <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-4 md:p-6 h-[300px] md:h-[400px] flex flex-col">
           <h3 className="text-[10px] md:text-[11px] font-black uppercase tracking-widest text-slate-400 mb-4">Mark-to-Model at Horizon</h3>
-          <div className="flex-1 min-h-0">
-            <InteractiveLineChart data={analysis.horizonData} spot={market.spot} color="#f59e0b" />
+          <div className="h-[300px] w-full"> 
+            <InteractiveLineChart data={analysis.payoffData} spot={market.spot} color="#3b82f6" />
           </div>
         </div>
       </div>

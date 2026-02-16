@@ -1,17 +1,20 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Joyride, { Step, CallBackProps, STATUS, ACTIONS, EVENTS } from "react-joyride";
 import { PortfolioHeader } from "@/features/portfolio/components/PortfolioHeader";
 import { usePortfolioStore } from "@/features/portfolio/store";
-import { Filter, Layers, Presentation } from "lucide-react"; 
+import { Filter, Layers, Presentation, Download, Loader2 } from "lucide-react"; 
 import { Button } from "@/components/ui/button";
 import { PortfolioGrid } from "@/features/portfolio/components/PortfolioGrid";
 import { PayoffChart } from "@/features/portfolio/components/PayoffChart";
 import { TradeSheet } from "@/features/portfolio/components/TradeSheet";
 import { Heatmap } from "@/features/portfolio/components/Heatmap";
 import { SimulationControls } from "@/features/portfolio/components/SimulationControls";
+import { jsPDF } from "jspdf";
+import { toPng } from "html-to-image";
+import { toast } from "sonner";
 
 // --- Updated Tour Steps ---
 const TOUR_STEPS: Step[] = [
@@ -20,8 +23,8 @@ const TOUR_STEPS: Step[] = [
     content: "Welcome to the Portfolio Workbench! Click here to instantly load a sample trade onto your desk.",
     title: "1. Load a Trade",
     disableBeacon: true,
-    spotlightClicks: true, // Forces the user to click the button!
-    hideFooter: true,      // Hides "Next" so they can't skip adding the trade
+    spotlightClicks: true, 
+    hideFooter: true,      
   },
   {
     target: ".tour-active-positions",
@@ -60,14 +63,17 @@ export default function PortfolioPage() {
   const [runTour, setRunTour] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [mounted, setMounted] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+
+  // Ref to the main container
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     hydrate();
     setMounted(true);
     
-    // Auto-start tour if coming from homepage
     if (searchParams?.get("demo") === "true") {
-      clearPortfolio(); // Clear it so they start with an empty desk!
+      clearPortfolio(); 
       setTimeout(() => {
         setStepIndex(0);
         setRunTour(true);
@@ -77,16 +83,14 @@ export default function PortfolioPage() {
     }
   }, [hydrate, searchParams, clearPortfolio]);
 
-  // ADVANCE FROM STEP 1 TO STEP 2 WHEN TRADE IS ADDED
   useEffect(() => {
     if (runTour && stepIndex === 0 && trades.length > 0) {
-      setTimeout(() => setStepIndex(1), 300); // Small delay to let the DOM paint the grid
+      setTimeout(() => setStepIndex(1), 300); 
     }
   }, [trades.length, runTour, stepIndex]);
 
-  // Dynamic Scroll Fix
   useEffect(() => {
-    if (runTour && mounted && stepIndex > 0) { // Don't scroll on step 0, it's centered already
+    if (runTour && mounted && stepIndex > 0) {
       const targetSelector = TOUR_STEPS[stepIndex]?.target as string;
       if (targetSelector) {
         setTimeout(() => {
@@ -122,15 +126,113 @@ export default function PortfolioPage() {
   };
 
   const startManualDemo = () => {
-    clearPortfolio(); // Clear it so they start with an empty desk!
+    clearPortfolio(); 
     setStepIndex(0);
     setRunTour(true);
+  };
+
+  // --- PDF Export Logic (Expanded View) ---
+  // --- PDF Export Logic (Expanded View) ---
+  const handleExportPDF = async () => {
+    const printArea = containerRef.current;
+    if (!printArea) {
+      toast.error("Error: Could not find the dashboard area to print.");
+      return;
+    }
+
+    try {
+      setIsExporting(true);
+      toast.info("Generating PDF report...");
+
+      // 1. SELECT SCROLLABLE CONTAINERS
+      const scrollableElements = printArea.querySelectorAll('.js-print-scroll') as NodeListOf<HTMLElement>;
+      const originalStyles: { element: HTMLElement, height: string, overflow: string }[] = [];
+
+      // 2. EXPAND ELEMENTS (Save original state first)
+      scrollableElements.forEach((el) => {
+        originalStyles.push({
+          element: el,
+          height: el.style.height,
+          overflow: el.style.overflow
+        });
+        el.style.height = 'auto';      // Allow expansion
+        el.style.overflow = 'visible'; // Show overflow
+      });
+
+      // Also allow the main parent to grow
+      const mainOriginalHeight = printArea.style.height;
+      const mainOriginalOverflow = printArea.style.overflow;
+      printArea.style.height = 'auto';
+      printArea.style.overflow = 'visible';
+
+      // Small delay to allow DOM reflow
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      const dataUrl = await toPng(printArea, {
+        quality: 1.0,
+        pixelRatio: 2,
+        backgroundColor: "#020617", 
+        filter: (node) => {
+          if (node instanceof HTMLElement && node.dataset.html2canvasIgnore === "true") {
+            return false;
+          }
+          return true;
+        }
+      });
+
+      // 3. RESTORE STYLES IMMEDIATELY (FIXED LOOP)
+      // We must iterate over 'originalStyles' to get the saved config
+      originalStyles.forEach((item) => {
+        item.element.style.height = item.height;
+        item.element.style.overflow = item.overflow;
+      });
+      
+      // Restore main parent
+      printArea.style.height = mainOriginalHeight;
+      printArea.style.overflow = mainOriginalOverflow;
+
+      // 4. GENERATE PDF
+      const pdf = new jsPDF("l", "mm", "a4");
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      
+      const pdfHeight = (printArea.offsetHeight * pdfWidth) / printArea.offsetWidth;
+      
+      let heightLeft = pdfHeight;
+      let position = 0;
+
+      pdf.setFillColor(2, 6, 23); 
+      pdf.rect(0, 0, pdfWidth, pageHeight, "F");
+
+      pdf.addImage(dataUrl, "PNG", 0, position, pdfWidth, pdfHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft > 0) {
+        position = heightLeft - pdfHeight;
+        pdf.addPage();
+        pdf.setFillColor(2, 6, 23); 
+        pdf.rect(0, 0, pdfWidth, pageHeight, "F");
+        pdf.addImage(dataUrl, "PNG", 0, position, pdfWidth, pdfHeight);
+        heightLeft -= pageHeight;
+      }
+
+      const dateStr = new Date().toISOString().split('T')[0];
+      pdf.save(`Portfolio_Risk_Report_${dateStr}.pdf`);
+      toast.success("PDF Exported Successfully");
+
+    } catch (error) {
+      console.error("PDF Export failed:", error);
+      toast.error("Failed to generate PDF. See console.");
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   if (!mounted) return null;
 
   return (
-    <div className="h-screen w-full flex flex-col overflow-hidden bg-[#020617] text-white font-sans pt-28 lg:pt-2">
+    // Attached Ref here for screenshotting
+    <div ref={containerRef} id="portfolio-export-area" className="h-screen w-full flex flex-col overflow-hidden bg-[#020617] text-white font-sans pt-28 lg:pt-2">
       
       <Joyride
         callback={handleJoyrideCallback}
@@ -171,6 +273,18 @@ export default function PortfolioPage() {
         </div>
         
         <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
+           <Button 
+              variant="outline" 
+              size="sm" 
+              className="h-7 text-[9px] uppercase font-bold text-emerald-400 border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors"
+              onClick={handleExportPDF}
+              disabled={isExporting}
+              data-html2canvas-ignore="true"
+           >
+              {isExporting ? <Loader2 className="w-3 h-3 mr-1.5 animate-spin" /> : <Download className="w-3 h-3 mr-1.5" />}
+              {isExporting ? "Generating..." : "Export Report"}
+           </Button>
+
            <Button variant="outline" size="sm" className="h-7 text-[9px] uppercase font-bold text-blue-400 border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 transition-colors" onClick={startManualDemo}>
               <Presentation className="w-3 h-3 mr-1.5" /> Demo
            </Button>
@@ -210,11 +324,12 @@ export default function PortfolioPage() {
             </div>
           </div>
           
-          <div className="flex-1 lg:overflow-y-auto dark-scrollbar bg-[#020617] relative">
-             <div className="absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,_#1e3a8a05_0%,_transparent_50%)] pointer-events-none" />
-             <div className="relative z-10 p-4 lg:p-0 h-full">
-                <PortfolioGrid />
-             </div>
+          {/* ADDED 'js-print-scroll' class here for auto-expansion logic */}
+          <div className="flex-1 lg:overflow-y-auto dark-scrollbar bg-[#020617] relative js-print-scroll">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,_#1e3a8a05_0%,_transparent_50%)] pointer-events-none" />
+              <div className="relative z-10 p-4 lg:p-0 h-full">
+                 <PortfolioGrid />
+              </div>
           </div>
         </section>
 
@@ -226,7 +341,8 @@ export default function PortfolioPage() {
                 </h2>
             </div>
 
-            <div className="flex-1 lg:overflow-y-auto dark-scrollbar p-4 lg:p-6 space-y-6 pb-24 lg:pb-6 relative z-0">
+            {/* ADDED 'js-print-scroll' class here for auto-expansion logic */}
+            <div className="flex-1 lg:overflow-y-auto dark-scrollbar p-4 lg:p-6 space-y-6 pb-24 lg:pb-6 relative z-0 js-print-scroll">
                 
                 <SimulationControls />
 

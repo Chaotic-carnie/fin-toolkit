@@ -121,7 +121,7 @@ export default function HomePage() {
     <div className="h-screen w-full bg-[#020617] text-white overflow-hidden font-sans relative">
       <div className="fixed inset-0 bg-[radial-gradient(circle_at_50%_0%,_#1d4ed815_0%,_transparent_60%)] pointer-events-none z-0" />
       
-      <div className="h-full w-full overflow-y-auto dark-scrollbar pt-16 pb-24 relative z-10">
+      <div className="h-full w-full overflow-y-auto dark-scrollbar pt-5 pb-24 relative z-10">
         <main className="flex flex-col gap-10 lg:gap-14 w-full min-h-max">
           
           <section className="w-full max-w-7xl mx-auto px-4 lg:px-6 pt-6 lg:pt-1 shrink-0">

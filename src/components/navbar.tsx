@@ -13,6 +13,7 @@ const NAV_LINKS = [
   { name: "Tax", href: "/tax" },
   { name: "Scenario", href: "/scenario" },
   { name: "Capital", href: "/capital" },
+  { name: "About Us", href: "/about" },
 ];
 
 export function Navbar() {

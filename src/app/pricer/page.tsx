@@ -3,9 +3,12 @@
 import React, { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Joyride, { Step, CallBackProps, STATUS, ACTIONS, EVENTS } from "react-joyride";
-import { Info, Loader2, Activity, Tag, Presentation, ChevronRight, Binary, Cpu } from "lucide-react";
+import { Info, Loader2, Activity, Tag, Presentation, ChevronRight, Binary, Cpu, Download } from "lucide-react";
 import { PRICER_CATALOG } from "@/features/pricing/config";
 import { computeResult, PricingResult } from "@/features/pricing/engine";
+import { jsPDF } from "jspdf";
+import { toJpeg } from "html-to-image"; // Changed from toPng
+import { toast } from "sonner"; 
 
 // --- Types ---
 interface PricingRequest {
@@ -94,6 +97,7 @@ export default function PricerPage() {
   const [calcTime, setCalcTime] = useState<number | null>(null);
   const [runQuantity, setRunQuantity] = useState(1);
   const [isComputing, setIsComputing] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   const currentInstrument = PRICER_CATALOG.instruments.find((i) => i.key === instKey)!;
   const currentMethod = currentInstrument.methods.find((m) => m.key === methodKey) || currentInstrument.methods[0];
@@ -176,17 +180,85 @@ export default function PricerPage() {
      });
   }, [methodKey]);
 
+  // --- PDF Export Logic (Optimized JPEG) ---
+  const handleExportPDF = async () => {
+    // FIX: Use getElementById instead of containerRef for the Pricer page
+    const printArea = document.getElementById("pricer-export-area");
+    if (!printArea) {
+      toast.error("Error: Could not find the dashboard area to print.");
+      return;
+    }
+
+    try {
+      setIsExporting(true);
+      toast.info("Generating PDF... (optimizing size)");
+
+      // 1. Wait for UI to settle
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // 2. Capture as JPEG
+      const dataUrl = await toJpeg(printArea, {
+        quality: 0.75,
+        pixelRatio: 1.5,
+        backgroundColor: "#020617", 
+        filter: (node) => {
+          if (node instanceof HTMLElement && node.dataset.html2canvasIgnore === "true") {
+            return false;
+          }
+          return true;
+        }
+      });
+      
+      const pdf = new jsPDF("l", "mm", "a4");
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      
+      const pdfHeight = (printArea.offsetHeight * pdfWidth) / printArea.offsetWidth;
+      
+      let heightLeft = pdfHeight;
+      let position = 0;
+
+      pdf.setFillColor(2, 6, 23); 
+      pdf.rect(0, 0, pdfWidth, pageHeight, "F");
+
+      pdf.addImage(dataUrl, "JPEG", 0, position, pdfWidth, pdfHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft > 0) {
+        position = heightLeft - pdfHeight;
+        pdf.addPage();
+        
+        pdf.setFillColor(2, 6, 23); 
+        pdf.rect(0, 0, pdfWidth, pageHeight, "F");
+        
+        pdf.addImage(dataUrl, "JPEG", 0, position, pdfWidth, pdfHeight);
+        heightLeft -= pageHeight;
+      }
+
+      const dateStr = new Date().toISOString().split('T')[0];
+      pdf.save(`Pricer_Report_${dateStr}.pdf`);
+      toast.success("PDF Exported Successfully");
+
+    } catch (error) {
+      console.error("PDF Export failed:", error);
+      toast.error("Failed to generate PDF. See console.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const handleCompute = async () => {
     setIsComputing(true);
     setRunQuantity(quantity);
     
+    // EXPLICIT MAPPING: Ensure UI keys match Engine expectations
+    // Engine expects 'sigma', 'r', 'q', 'S', 'K', 'T', and 'option_type'
     const combinedInputs = {
       ...marketParams,
       ...instrumentParams,
       sigma: marketParams.sigma, 
-      // CRITICAL: Ensure we look for 'type' (from dropdown) OR 'option_type'
-      option_type: instrumentParams.type || instrumentParams.option_type || 'call',
-      barrierType: instrumentParams.barrierType || 'up-out', // Explicitly pass fallback here too for safety
+      option_type: instrumentParams.type || instrumentParams.option_type || 'call', // Correct fallback
+      barrierType: instrumentParams.barrierType || 'up-out',
       quantity: quantity
     };
 
@@ -244,7 +316,8 @@ export default function PricerPage() {
   if (!mounted) return null;
 
   return (
-    <main className="flex flex-col lg:flex-row w-full bg-[#020617] text-white pt-10 lg:pt-4 px-4 lg:px-6 gap-6 h-screen overflow-y-auto lg:overflow-hidden font-sans dark-scrollbar selection:bg-blue-500/30">
+    // Added ID "pricer-export-area" for PDF generation and "dark-scrollbar" class is already here
+    <main id="pricer-export-area" className="flex flex-col lg:flex-row w-full bg-[#020617] text-white pt-10 lg:pt-4 px-4 lg:px-6 gap-6 h-screen overflow-y-auto lg:overflow-hidden font-sans dark-scrollbar selection:bg-blue-500/30">
 
       {/* --- JOYRIDE COMPONENT --- */}
       <Joyride
@@ -284,12 +357,25 @@ export default function PricerPage() {
             <p className="text-[10px] md:text-xs text-slate-400 pt-1">Choose an instrument, pick a method, enter inputs → get a result.</p>
           </div>
           
-          <button 
-            onClick={startManualDemo}
-            className="flex items-center gap-2 text-[10px] uppercase font-bold tracking-widest text-blue-400 bg-blue-500/10 border border-blue-500/30 px-3 py-1.5 rounded-lg hover:bg-blue-500/20 transition-colors shrink-0"
-          >
-            <Presentation className="w-3 h-3" /> Demo
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+             {/* PDF EXPORT BUTTON */}
+            <button 
+              onClick={handleExportPDF}
+              disabled={isExporting}
+              className="flex items-center gap-2 text-[10px] uppercase font-bold tracking-widest text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1.5 rounded-lg hover:bg-emerald-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              data-html2canvas-ignore="true" // Ignore the button itself during print
+            >
+               {isExporting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />} 
+               {isExporting ? "Saving..." : "Export"}
+            </button>
+
+            <button 
+              onClick={startManualDemo}
+              className="flex items-center gap-2 text-[10px] uppercase font-bold tracking-widest text-blue-400 bg-blue-500/10 border border-blue-500/30 px-3 py-1.5 rounded-lg hover:bg-blue-500/20 transition-colors"
+            >
+              <Presentation className="w-3 h-3" /> Demo
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 mb-6">
