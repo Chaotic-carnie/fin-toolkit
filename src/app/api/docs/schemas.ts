@@ -388,3 +388,270 @@ export const strategySchemas = {
     }
   }
 };
+
+// --- CAPBUD SCHEMAS ---
+export const CapBudCashflowTableSchema = {
+  type: "object",
+  properties: {
+    years: { type: "array", items: { type: "integer" } },
+    cashflows: { type: "array", items: { type: "number" } },
+    discounted_cashflows: { type: "array", items: { type: "number" } },
+    cumulative_cashflows: { type: "array", items: { type: "number" } },
+    cumulative_discounted_cashflows: { type: "array", items: { type: "number" } },
+  },
+  required: ["years", "cashflows", "discounted_cashflows", "cumulative_cashflows", "cumulative_discounted_cashflows"]
+} as const;
+
+export const CapBudProfileSchema = {
+  type: "object",
+  properties: {
+    rates: { type: "array", items: { type: "number" } },
+    npvs: { type: "array", items: { type: "number" } },
+  },
+  required: ["rates", "npvs"]
+} as const;
+
+export const CapBudSensitivitySchema = {
+  type: "object",
+  properties: {
+    rate_shifts: { type: "array", items: { type: "number" } },
+    scale_shifts: { type: "array", items: { type: "number" } },
+    npv_grid: { type: "array", items: { type: "array", items: { type: "number" } } },
+  },
+  required: ["rate_shifts", "scale_shifts", "npv_grid"]
+} as const;
+
+export const CapBudComputeRequestSchema = {
+  type: "object",
+  properties: {
+    project_name: { type: "string", default: "Project" },
+    currency: { type: "string", default: "USD" },
+    discount_rate: { type: "number" },
+    cashflows: { type: "array", items: { type: "number" } },
+    finance_rate: { type: "number", nullable: true },
+    reinvest_rate: { type: "number", nullable: true },
+    convention: { type: "string", enum: ["end_of_period", "mid_year"], default: "end_of_period" }
+  },
+  required: ["discount_rate", "cashflows"]
+} as const;
+
+// Strict TS Interfaces to be used across the entire pipeline
+export interface CapBudComputeRequest {
+  project_name?: string;
+  currency?: string;
+  discount_rate: number;
+  cashflows: number[];
+  finance_rate?: number | null;
+  reinvest_rate?: number | null;
+  convention?: "end_of_period" | "mid_year";
+}
+
+export interface CapBudComputeResponse {
+  run_id: string;
+  project_name: string;
+  currency: string;
+  discount_rate: number;
+  convention: string;
+  npv: number;
+  irr: number | null;
+  irr_candidates: number[];
+  irr_warning: string | null;
+  mirr: number | null;
+  profitability_index: number | null;
+  payback_period: number | null;
+  discounted_payback_period: number | null;
+  cashflow_table: {
+    years: number[];
+    cashflows: number[];
+    discounted_cashflows: number[];
+    cumulative_cashflows: number[];
+    cumulative_discounted_cashflows: number[];
+  };
+  npv_profile: { rates: number[]; npvs: number[] };
+  sensitivity: { rate_shifts: number[]; scale_shifts: number[]; npv_grid: number[][] };
+  decision: string;
+  notes: string[];
+}
+
+// --- ALLOCATION & POSITION SIZING SCHEMAS ---
+
+export const AllocationComputeRequestSchema = {
+  type: "object",
+  properties: {
+    win_rate: { type: "number", description: "Probability of win (0 to 1)" },
+    payoff_ratio: { type: "number", description: "Average Win / Average Loss" },
+    starting_capital: { type: "number" },
+    ruin_drawdown_pct: { type: "number", description: "Drawdown % considered 'ruin' (e.g., 0.20 for 20%)" },
+    sim_runs: { type: "integer", default: 1000 },
+    sim_trades: { type: "integer", default: 100 }
+  },
+  required: ["win_rate", "payoff_ratio", "starting_capital", "ruin_drawdown_pct"]
+} as const;
+
+export const AllocationComputeResponseSchema = {
+  type: "object",
+  properties: {
+    run_id: { type: "string" },
+    kelly_pct: { type: "number" },
+    half_kelly_pct: { type: "number" },
+    recommended_alloc_amount: { type: "number" },
+    risk_of_ruin_prob: { type: "number" },
+    expected_growth_rate: { type: "number" },
+    // We send back a subset of paths to draw a "Spaghetti Chart" on the UI without lagging the main thread
+    simulated_paths: { 
+      type: "array", 
+      items: { type: "array", items: { type: "number" } },
+      description: "Downsampled equity curves for Recharts"
+    }
+  },
+  required: [
+    "run_id", "kelly_pct", "half_kelly_pct", "recommended_alloc_amount", 
+    "risk_of_ruin_prob", "expected_growth_rate", "simulated_paths"
+  ]
+} as const;
+
+// Strict TS Interfaces
+export interface AllocationComputeRequest {
+  win_rate: number;
+  payoff_ratio: number;
+  starting_capital: number;
+  ruin_drawdown_pct: number;
+  sim_runs?: number;
+  sim_trades?: number;
+}
+
+export interface AllocationComputeResponse {
+  run_id: string;
+  kelly_pct: number;
+  half_kelly_pct: number;
+  recommended_alloc_amount: number;
+  risk_of_ruin_prob: number;
+  expected_growth_rate: number;
+  simulated_paths: number[][];
+}
+
+// --- MARGIN & BUYING POWER SCHEMAS ---
+export const MarginLegSchema = {
+  type: "object",
+  properties: {
+    type: { type: "string", enum: ["call", "put"] },
+    action: { type: "string", enum: ["buy", "sell"] },
+    quantity: { type: "number" },
+    strike: { type: "number" },
+    premium: { type: "number" },
+  },
+  required: ["type", "action", "quantity", "strike", "premium"]
+} as const;
+
+export const MarginComputeRequestSchema = {
+  type: "object",
+  properties: {
+    spot_price: { type: "number" },
+    legs: { type: "array", items: MarginLegSchema },
+  },
+  required: ["spot_price", "legs"]
+} as const;
+
+export const MarginComputeResponseSchema = {
+  type: "object",
+  properties: {
+    run_id: { type: "string" },
+    total_margin_req: { type: "number" },
+    net_premium: { type: "number" }, // Positive = Credit, Negative = Debit
+    max_return_on_capital: { type: "number", nullable: true },
+    leg_margins: { type: "array", items: { type: "number" } },
+    strategy_classification: { type: "string" }
+  },
+  required: ["run_id", "total_margin_req", "net_premium", "max_return_on_capital", "leg_margins", "strategy_classification"]
+} as const;
+
+// Strict TS Interfaces
+export interface MarginLeg {
+  type: "call" | "put";
+  action: "buy" | "sell";
+  quantity: number;
+  strike: number;
+  premium: number;
+}
+
+export interface MarginComputeRequest {
+  spot_price: number;
+  legs: MarginLeg[];
+}
+
+export interface MarginComputeResponse {
+  run_id: string;
+  total_margin_req: number;
+  net_premium: number;
+  max_return_on_capital: number | null;
+  leg_margins: number[];
+  strategy_classification: string;
+}
+
+// --- BETA EXPOSURE SCHEMAS ---
+export const ExposureLegSchema = {
+  type: "object",
+  properties: {
+    symbol: { type: "string" },
+    asset_type: { type: "string", enum: ["stock", "option"] },
+    quantity: { type: "number", description: "Negative for short positions" },
+    delta: { type: "number", description: "Per-share delta (e.g., 0.50 for ATM call, 1.0 for stock)" },
+    spot_price: { type: "number" },
+    beta: { type: "number", description: "Beta relative to the benchmark" },
+  },
+  required: ["symbol", "asset_type", "quantity", "delta", "spot_price", "beta"]
+} as const;
+
+export const ExposureComputeRequestSchema = {
+  type: "object",
+  properties: {
+    benchmark_name: { type: "string", default: "SPY" },
+    benchmark_price: { type: "number" },
+    legs: { type: "array", items: ExposureLegSchema },
+  },
+  required: ["benchmark_price", "legs"]
+} as const;
+
+export const ExposureComputeResponseSchema = {
+  type: "object",
+  properties: {
+    run_id: { type: "string" },
+    net_beta_delta: { type: "number" },
+    net_dollar_exposure: { type: "number" },
+    leg_exposures: { 
+      type: "array", 
+      items: {
+        type: "object",
+        properties: {
+          symbol: { type: "string" },
+          raw_delta: { type: "number" },
+          beta_weighted_delta: { type: "number" }
+        }
+      }
+    }
+  },
+  required: ["run_id", "net_beta_delta", "net_dollar_exposure", "leg_exposures"]
+} as const;
+
+// Strict TS Interfaces
+export interface ExposureLeg {
+  symbol: string;
+  asset_type: "stock" | "option";
+  quantity: number; 
+  delta: number;
+  spot_price: number;
+  beta: number;
+}
+
+export interface ExposureComputeRequest {
+  benchmark_name?: string;
+  benchmark_price: number;
+  legs: ExposureLeg[];
+}
+
+export interface ExposureComputeResponse {
+  run_id: string;
+  net_beta_delta: number;
+  net_dollar_exposure: number;
+  leg_exposures: { symbol: string; raw_delta: number; beta_weighted_delta: number; }[];
+}

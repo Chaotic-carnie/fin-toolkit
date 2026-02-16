@@ -12,14 +12,13 @@ const NAV_LINKS = [
   { name: "Macro", href: "/macro" },
   { name: "Tax", href: "/tax" },
   { name: "Scenario", href: "/scenario" },
+  { name: "Capital", href: "/capital" },
 ];
 
 export function Navbar() {
   const pathname = usePathname();
 
   return (
-    // FIXED: Added 'h-16' (height) and boosted z-index to 'z-[100]'
-    // Added border-b back so it doesn't blend into the dark page background
     <nav className="fixed top-0 left-0 w-full h-16 z-[100] bg-[#020617]/80 backdrop-blur-md border-b border-white/10 px-6">
       <div className="max-w-7xl mx-auto h-full flex items-center justify-between">
         
@@ -33,20 +32,25 @@ export function Navbar() {
           </Link>
           
           <div className="hidden lg:flex items-center gap-1">
-            {NAV_LINKS.map((link) => (
-              <Link key={link.href} href={link.href}>
-                <Button 
-                  variant="ghost" 
-                  className={`text-xs font-medium px-4 h-8 transition-all duration-200 ${
-                    pathname === link.href 
-                      ? 'text-blue-400 bg-blue-500/10' 
-                      : 'text-slate-400 hover:text-white hover:bg-white/10'
-                  }`}
-                >
-                  {link.name}
-                </Button>
-              </Link>
-            ))}
+            {NAV_LINKS.map((link) => {
+              // THE FIX: Check for exact match OR if the current path is a sub-route of the link
+              const isActive = pathname === link.href || (link.href !== '/' && pathname.startsWith(`${link.href}/`));
+
+              return (
+                <Link key={link.href} href={link.href}>
+                  <Button 
+                    variant="ghost" 
+                    className={`text-xs font-medium px-4 h-8 transition-all duration-200 ${
+                      isActive 
+                        ? 'text-blue-400 bg-blue-500/10' 
+                        : 'text-slate-400 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    {link.name}
+                  </Button>
+                </Link>
+              );
+            })}
           </div>
         </div>
 

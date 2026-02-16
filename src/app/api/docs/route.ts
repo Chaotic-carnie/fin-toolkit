@@ -1,7 +1,7 @@
 // src/app/api/docs/route.ts
 
 import { NextResponse } from 'next/server';
-import { pricerPaths, portfolioPaths, taxPaths, macroPaths, strategyPaths } from './paths';
+import { pricerPaths, portfolioPaths, taxPaths, macroPaths, strategyPaths, capbudPaths } from './paths';
 import { pricerSchemas, taxSchemas, macroSchemas, strategySchemas } from './schemas';
 
 const openApiSpec = {
@@ -20,6 +20,7 @@ const openApiSpec = {
     ...taxPaths,
     ...macroPaths,
     ...strategyPaths,
+    ...capbudPaths,
   },
 
   components: {
@@ -29,6 +30,7 @@ const openApiSpec = {
       ...pricerSchemas,
       ...taxSchemas,
       ...strategySchemas,
+      ...capbudPaths,
     },
   },
 };

@@ -292,3 +292,117 @@ export const strategyPaths = {
     }
   }
 };
+
+export const capbudPaths = {
+  '/api/capbud/compute': {
+    post: {
+      summary: 'Compute Capital Budgeting Metrics',
+      description: 'Calculates NPV, IRR, MIRR, Payback periods, and generates sensitivity grids and NPV profiles.',
+      tags: ['Capital Budgeting'],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: { $ref: '#/components/schemas/CapBudComputeRequest' },
+            examples: {
+              StandardExpansion: {
+                summary: 'Standard 5-Year Expansion',
+                value: {
+                  project_name: "Expansion Project A",
+                  currency: "USD",
+                  discount_rate: 0.10,
+                  convention: "end_of_period",
+                  cashflows: [-1000, 300, 300, 300, 300, 300]
+                }
+              },
+              MidYearWACC: {
+                summary: 'Mid-Year Convention with MIRR',
+                value: {
+                  project_name: "Heavy Machinery Purchase",
+                  currency: "USD",
+                  discount_rate: 0.12,
+                  finance_rate: 0.08,
+                  reinvest_rate: 0.10,
+                  convention: "mid_year",
+                  cashflows: [-50000, 15000, 18000, 22000, 12000]
+                }
+              }
+            }
+          }
+        }
+      },
+      responses: {
+        '200': {
+          description: 'Successful computation',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/CapBudComputeResponse' }
+            }
+          }
+        },
+        '400': {
+          description: 'Invalid input (e.g., missing cashflows or discount rate)',
+          content: { 'application/json': { schema: { type: 'object' } } }
+        },
+        '500': {
+          description: 'Internal server error during computation',
+          content: { 'application/json': { schema: { type: 'object' } } }
+        }
+      }
+    }
+  }
+};
+
+export const allocationPaths = {
+  '/api/allocation/compute': {
+    post: {
+      summary: 'Compute Kelly Criterion & Risk of Ruin',
+      description: 'Calculates optimal position sizing and runs a Monte Carlo simulation for drawdown probabilities.',
+      tags: ['Capital Allocation'],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': { schema: { $ref: '#/components/schemas/AllocationComputeRequest' } }
+        }
+      },
+      responses: {
+        '200': {
+          description: 'Successful computation',
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/AllocationComputeResponse' } } }
+        }
+      }
+    }
+  }
+};
+
+export const marginPaths = {
+  '/api/margin/compute': {
+    post: {
+      summary: 'Compute Reg T Margin',
+      description: 'Calculates Initial Margin requirements and ROC for an options strategy.',
+      tags: ['Capital Margin'],
+      requestBody: {
+        required: true,
+        content: { 'application/json': { schema: { $ref: '#/components/schemas/MarginComputeRequest' } } }
+      },
+      responses: {
+        '200': {
+          description: 'Margin computed',
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/MarginComputeResponse' } } }
+        }
+      }
+    }
+  }
+};
+
+export const exposurePaths = {
+  '/api/exposure/compute': {
+    post: {
+      summary: 'Compute Beta-Weighted Exposure',
+      description: 'Calculates portfolio directional risk normalized to a benchmark.',
+      tags: ['Capital Exposure'],
+      requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/ExposureComputeRequest' } } } },
+      responses: { '200': { description: 'Exposure computed', content: { 'application/json': { schema: { $ref: '#/components/schemas/ExposureComputeResponse' } } } } }
+    }
+  }
+};
