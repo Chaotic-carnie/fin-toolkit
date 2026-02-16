@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { computeMarginMetrics } from "@/features/margin/engine";
-import { MarginComputeRequest } from "@/app/api/docs/schemas";
+import { type MarginComputeRequest } from "@/app/api/docs/schemas";
 import { randomUUID } from "crypto";
 
 export async function POST(req: Request) {

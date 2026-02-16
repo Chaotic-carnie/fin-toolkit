@@ -3,8 +3,12 @@
 import React, { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAllocationStore } from "@/features/allocation/store";
-import { AllocationComputeRequest, AllocationComputeResponse } from "@/app/api/docs/schemas";
-import Joyride, { Step, CallBackProps, STATUS, ACTIONS, EVENTS } from "react-joyride";
+import type { AllocationComputeRequest, AllocationComputeResponse } from "@/app/api/docs/schemas";
+import dynamic from "next/dynamic";
+// Rename the default import to something unique like 'JoyrideTour'
+import JoyrideTour, { type Step,type CallBackProps, STATUS, ACTIONS, EVENTS } from "react-joyride";
+// Forces Next.js to ignore this during the build phase
+const Joyride = dynamic(() => import("react-joyride"), { ssr: false });
 
 import { 
   Calculator, Layers, Filter, RefreshCw, AlertCircle, Play, TrendingUp, Presentation
@@ -137,7 +141,7 @@ export default function AllocationPage() {
 
   const chartData: any[] = [];
   if (store.result && store.result.simulated_paths.length > 0) {
-    const numTrades = store.result.simulated_paths[0].length;
+    const numTrades = store.result.simulated_paths[0]?.length ?? 0;
     for (let t = 0; t < numTrades; t++) {
       const dataPoint: any = { trade: `Trade ${t}` };
       store.result.simulated_paths.forEach((path, idx) => { dataPoint[`run${idx}`] = path[t]; });
@@ -152,7 +156,7 @@ export default function AllocationPage() {
   return (
     <div className="h-full w-full bg-[#020617] text-white flex flex-col overflow-hidden font-sans">
       
-      <Joyride
+      <JoyrideTour
         callback={handleJoyrideCallback}
         continuous
         stepIndex={stepIndex} 
@@ -310,7 +314,7 @@ export default function AllocationPage() {
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
                       <XAxis dataKey="trade" fontSize={10} tickLine={false} axisLine={false} stroke="#64748b" tickFormatter={(val) => val.replace("Trade ", "")} minTickGap={30} />
                       <YAxis fontSize={10} tickLine={false} axisLine={false} stroke="#64748b" domain={['auto', 'auto']} tickFormatter={(val) => `$${val/1000}k`} />
-                      <RechartsTooltip cursor={{ strokeDasharray: "3 3", stroke: "rgba(255,255,255,0.2)" }} contentStyle={{ backgroundColor: "#0f172a", borderColor: "rgba(255,255,255,0.1)", borderRadius: "8px", fontSize: "12px", color: "#fff" }} labelStyle={{ color: "#94a3b8", marginBottom: "4px" }} formatter={(value: number) => [`$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`, "Equity"]} />
+                      <RechartsTooltip cursor={{ strokeDasharray: "3 3", stroke: "rgba(255,255,255,0.2)" }} contentStyle={{ backgroundColor: "#0f172a", borderColor: "rgba(255,255,255,0.1)", borderRadius: "8px", fontSize: "12px", color: "#fff" }} labelStyle={{ color: "#94a3b8", marginBottom: "4px" }} formatter={(value: any) => [`$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`, "Equity"]} />
                       <ReferenceLine y={ruinLevelAmount} stroke="#ef4444" strokeDasharray="4 4" label={{ position: 'insideBottomLeft', value: 'Ruin Level', fill: '#ef4444', fontSize: 10 }} />
                       <ReferenceLine y={store.startingCapital} stroke="rgba(255,255,255,0.2)" />
                       {store.result.simulated_paths.map((_, idx) => (

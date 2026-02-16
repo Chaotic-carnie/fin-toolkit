@@ -21,7 +21,7 @@ export default function ApiDocs() {
       <div className="flex-1 overflow-y-auto w-full relative dark-scrollbar mb-10">
         <ApiReferenceReact
           configuration={{
-            spec: { url: '/api/docs' },
+              url: '/api/docs',
             theme: 'kepler',
             darkMode: true,
             hideModels: true, 

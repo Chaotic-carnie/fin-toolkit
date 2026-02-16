@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { CapBudComputeResponse } from "@/app/api/docs/schemas";
+import { type CapBudComputeResponse } from "@/app/api/docs/schemas";
 
 interface CapBudState {
   // Core Form State

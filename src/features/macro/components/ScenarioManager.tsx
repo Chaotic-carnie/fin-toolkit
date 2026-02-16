@@ -7,9 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Save, Trash2, Play, Loader2, FolderOpen } from "lucide-react";
 import { useMacroStore } from "../store";
-import { saveScenario, getScenarios, deleteScenario } from "@/features/macro/actions";
+import { saveScenario, getScenarios, deleteScenario } from "@/lib/demo-db";
 import { toast } from "sonner";
-import type { MacroScenario } from "@prisma/client";
+import type { MacroScenario } from "../types";
 
 // Helper type for what we expect inside the JSON
 type ShockState = {

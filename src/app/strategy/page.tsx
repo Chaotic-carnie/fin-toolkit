@@ -13,7 +13,11 @@ import { Settings2, Activity, TrendingUp, Target, ListChecks, BarChart3, Info, L
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ReferenceLine, ResponsiveContainer } from "recharts";
 import { usePortfolioStore } from "~/features/portfolio/store"; 
 import { useSearchParams, useRouter } from "next/navigation";
-import Joyride, { Step, CallBackProps, STATUS, ACTIONS, EVENTS } from "react-joyride";
+import dynamic from "next/dynamic";
+import type { Step, CallBackProps } from "react-joyride";
+
+// Forces Next.js to ignore this during the build phase
+const Joyride = dynamic(() => import("react-joyride"), { ssr: false });
 import { Presentation } from "lucide-react";
 import { Download, Loader2 } from "lucide-react";
 import { jsPDF } from "jspdf";

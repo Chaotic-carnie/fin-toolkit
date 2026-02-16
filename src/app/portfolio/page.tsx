@@ -2,7 +2,11 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import Joyride, { Step, CallBackProps, STATUS, ACTIONS, EVENTS } from "react-joyride";
+import dynamic from "next/dynamic";
+import type { Step, CallBackProps } from "react-joyride";
+
+// Forces Next.js to ignore this during the build phase
+const Joyride = dynamic(() => import("react-joyride"), { ssr: false });
 import { PortfolioHeader } from "@/features/portfolio/components/PortfolioHeader";
 import { usePortfolioStore } from "@/features/portfolio/store";
 import { Filter, Layers, Presentation, Download, Loader2 } from "lucide-react"; 

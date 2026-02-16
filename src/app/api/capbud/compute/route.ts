@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { computeCapBudMetrics } from "@/features/capbud/engine";
-import { CapBudComputeRequest } from "@/app/api/docs/schemas";
+import { type CapBudComputeRequest } from "@/app/api/docs/schemas";
 
 export async function POST(req: Request) {
   try {

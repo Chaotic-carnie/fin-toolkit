@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { computeAllocationMetrics } from "@/features/allocation/engine";
-import { AllocationComputeRequest } from "@/app/api/docs/schemas";
+import { type AllocationComputeRequest } from "@/app/api/docs/schemas";
 import { randomUUID } from "crypto";
 
 export async function POST(req: Request) {

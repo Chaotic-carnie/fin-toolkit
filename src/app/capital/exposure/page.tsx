@@ -2,7 +2,7 @@
 
 import React from "react";
 import { useExposureStore } from "@/features/exposure/store";
-import { ExposureComputeRequest, ExposureComputeResponse } from "@/app/api/docs/schemas";
+import type { ExposureComputeRequest, ExposureComputeResponse } from "@/app/api/docs/schemas";
 
 import { Activity, Layers, Filter, Plus, Minus, RefreshCw, AlertCircle, Play, BarChart2 } from "lucide-react";
 import { Button } from "@/components/ui/button";

@@ -2,7 +2,7 @@
 
 import { NextResponse } from 'next/server';
 import { runTaxCompute } from '@/features/tax/engine';
-import { TaxComputeRequest } from '@/features/tax/types';
+import { type TaxComputeRequest } from '@/features/tax/types';
 import { isBefore, parseISO, startOfDay } from 'date-fns';
 
 // Legal boundary for the current engine logic

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { MarketSnapshot, EconomicEvent, PortfolioPosition } from "@prisma/client";
+import type { MarketSnapshot, EconomicEvent, PortfolioPosition } from "./types";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";

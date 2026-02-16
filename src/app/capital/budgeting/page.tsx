@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useCapBudStore } from "@/features/capbud/store";
-import { CapBudComputeRequest, CapBudComputeResponse } from "@/app/api/docs/schemas";
+import type { CapBudComputeRequest, CapBudComputeResponse } from "@/app/api/docs/schemas";
 
 import { 
   Calculator, Layers, Filter, Plus, Minus, RefreshCw, AlertCircle, Play, ChevronDown, ChevronUp
@@ -314,7 +314,7 @@ export default function CapBudPage() {
                             <ReferenceLine y={0} stroke="rgba(255,255,255,0.2)" />
                             <Bar dataKey="amount" radius={[2, 2, 0, 0]}>
                               {cashflowChartData.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.amount >= 0 ? "#3b82f6" : "#ef4444"} />
+                                <Cell key={`cell-${index}`} fill={(entry.amount ?? 0) >= 0 ? "#3b82f6" : "#ef4444"} />
                               ))}
                             </Bar>
                           </BarChart>
@@ -373,7 +373,7 @@ export default function CapBudPage() {
                         {store.result.cashflow_table.years.map((yr, i) => (
                           <tr key={yr} className="border-b border-white/5 hover:bg-white/5 transition-colors">
                             <td className="p-3 text-slate-500">t = {yr}</td>
-                            <td className={`p-3 text-right ${store.result!.cashflow_table.cashflows[i] < 0 ? 'text-red-400' : 'text-blue-400'}`}>{formatMetric(store.result!.cashflow_table.cashflows[i])}</td>
+                            <td className={`p-3 text-right ${(store.result!.cashflow_table.cashflows[i] ?? 0) < 0 ? 'text-red-400' : 'text-blue-400'}`}>{formatMetric(store.result!.cashflow_table.cashflows[i])}</td>
                             <td className="p-3 text-right text-slate-300">{formatMetric(store.result!.cashflow_table.discounted_cashflows[i])}</td>
                             <td className="p-3 text-right text-slate-500">{formatMetric(store.result!.cashflow_table.cumulative_cashflows[i])}</td>
                             <td className="p-3 text-right text-slate-500">{formatMetric(store.result!.cashflow_table.cumulative_discounted_cashflows[i])}</td>
@@ -411,7 +411,7 @@ export default function CapBudPage() {
                             <td className="p-2 font-bold text-slate-500">
                               {ss > 0 ? "+" : ""}{(ss * 100).toFixed(0)}%
                             </td>
-                            {store.result!.sensitivity.npv_grid[rowIdx].map((npv, colIdx) => (
+                            {(store.result?.sensitivity?.npv_grid?.[rowIdx] || []).map((npv, colIdx) => (
                               <td key={colIdx} className={`p-2 text-right ${npv < 0 ? 'text-red-400/80' : 'text-blue-400/80'}`}>
                                 {formatMetric(npv)}
                               </td>

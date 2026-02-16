@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useMarginStore } from "@/features/margin/store";
-import { MarginComputeRequest, MarginComputeResponse } from "@/app/api/docs/schemas";
+import type { MarginComputeRequest, MarginComputeResponse } from "@/app/api/docs/schemas";
 
 import { 
   Calculator, Layers, Filter, Plus, Minus, RefreshCw, AlertCircle, Play, ShieldAlert
@@ -61,8 +61,7 @@ export default function MarginPage() {
   const marginChartData = store.result?.leg_margins.map((margin, i) => ({
     name: `Leg ${i + 1}`,
     marginReq: margin,
-    desc: `${store.legs[i].action.toUpperCase()} ${store.legs[i].quantity}x ${store.legs[i].strike} ${store.legs[i].type.toUpperCase()}`
-  })) || [];
+desc: `${store.legs[i]?.action?.toUpperCase() ?? ''} ${store.legs[i]?.quantity ?? 0}x ${store.legs[i]?.strike ?? ''} ${store.legs[i]?.type?.toUpperCase() ?? ''}`  })) || [];
 
   return (
     // MOBILE FIX: Use `h-screen` but let the contents dictate scrolling, removed `min-h-0` restriction at top level
@@ -248,7 +247,7 @@ export default function MarginPage() {
                       <RechartsTooltip 
                         cursor={{ fill: "rgba(255,255,255,0.05)" }} 
                         contentStyle={{ backgroundColor: "#0f172a", borderColor: "rgba(255,255,255,0.1)", borderRadius: "8px", fontSize: "11px", color: "#fff" }}
-                        formatter={(value: number, name: string, props: any) => [`$${value.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, props.payload.desc]}
+                        formatter={(value: any, name: any, props: any) => [`$${value.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, props.payload.desc]}
                       />
                       <Bar dataKey="marginReq" radius={[0, 4, 4, 0]} barSize={20}>
                         {marginChartData.map((entry, index) => (

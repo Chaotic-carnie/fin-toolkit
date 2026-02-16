@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Zap } from "lucide-react";
-import { Button } from "./ui/button";
 
 const NAV_LINKS = [
   { name: "Pricer", href: "/pricer" },
@@ -25,8 +24,8 @@ export function Navbar() {
       {/* ================= DESKTOP ROW (100% Untouched Layout) ================= */}
       <div className="max-w-7xl mx-auto h-16 flex items-center justify-between">
         
-        {/* Logo Section */}
-        <div className="flex items-center gap-8">
+        {/* Logo & Links Section */}
+        <div className="flex items-center gap-8 w-full">
           <Link href="/" className="flex items-center gap-2 group shrink-0">
             <div className="p-1.5 bg-blue-500 rounded-lg group-hover:rotate-12 transition-transform shadow-[0_0_15px_rgba(59,130,246,0.5)]">
               <Zap className="w-4 h-4 text-white" />
@@ -34,7 +33,7 @@ export function Navbar() {
             <span className="font-bold tracking-tighter text-lg text-white">PEEYUSH LABS</span>
           </Link>
           
-          <div className="hidden lg:flex items-center gap-1">
+          <div className="hidden lg:flex items-center gap-1 ml-auto">
             {NAV_LINKS.map((link) => {
               const isActive = pathname === link.href || (link.href !== '/' && pathname.startsWith(`${link.href}/`));
 
@@ -42,7 +41,6 @@ export function Navbar() {
                 <Link 
                   key={link.href} 
                   href={link.href}
-                  // FIX: Applied Button styles directly to Link to prevent a > button Hydration crash
                   className={`inline-flex items-center justify-center rounded-md text-xs font-medium px-4 h-8 transition-all duration-200 ${
                     isActive 
                       ? 'text-blue-400 bg-blue-500/10' 
@@ -54,16 +52,6 @@ export function Navbar() {
               );
             })}
           </div>
-        </div>
-
-        {/* Action Section */}
-        <div className="flex items-center gap-4">
-          <Button 
-            size="sm" 
-            className="bg-blue-600 hover:bg-blue-500 text-white px-6 rounded-full transition-all hover:shadow-[0_0_20px_rgba(37,99,235,0.4)]"
-          >
-            Login
-          </Button>
         </div>
       </div>
 

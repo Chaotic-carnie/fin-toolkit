@@ -1,16 +1,11 @@
-import { env } from "~/env";
-import { PrismaClient } from "@prisma/client";
+// Mock Database Client for Stateless Vercel Deployment
+// This prevents the app from crashing if a stray db.model.action() is called.
 
-const createPrismaClient = () =>
-  new PrismaClient({
-    log:
-      env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
-  });
-
-const globalForPrisma = globalThis as unknown as {
-  prisma: ReturnType<typeof createPrismaClient> | undefined;
-};
-
-export const db = globalForPrisma.prisma ?? createPrismaClient();
-
-if (env.NODE_ENV !== "production") globalForPrisma.prisma = db;
+export const db = new Proxy({}, {
+  get: () => new Proxy({}, {
+    get: () => async () => {
+      console.log("Mock DB called. Returning empty array.");
+      return []; 
+    }
+  })
+}) as any;

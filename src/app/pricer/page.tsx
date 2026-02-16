@@ -2,10 +2,14 @@
 
 import React, { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import Joyride, { Step, CallBackProps, STATUS, ACTIONS, EVENTS } from "react-joyride";
+import dynamic from "next/dynamic";
+import type { Step, CallBackProps } from "react-joyride";
+
+// Forces Next.js to ignore this during the build phase
+const Joyride = dynamic(() => import("react-joyride"), { ssr: false });
 import { Info, Loader2, Activity, Tag, Presentation, ChevronRight, Binary, Cpu, Download } from "lucide-react";
 import { PRICER_CATALOG } from "@/features/pricing/config";
-import { computeResult, PricingResult } from "@/features/pricing/engine";
+import type { computeResult, PricingResult } from "@/features/pricing/engine";
 import { jsPDF } from "jspdf";
 import { toJpeg } from "html-to-image"; // Changed from toPng
 import { toast } from "sonner"; 

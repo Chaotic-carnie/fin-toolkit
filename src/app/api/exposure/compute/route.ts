@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { computeExposureMetrics } from "@/features/exposure/engine";
-import { ExposureComputeRequest } from "@/app/api/docs/schemas";
+import { type ExposureComputeRequest } from "@/app/api/docs/schemas";
 import { randomUUID } from "crypto";
 
 export async function POST(req: Request) {

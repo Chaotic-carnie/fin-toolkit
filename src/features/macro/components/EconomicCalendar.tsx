@@ -3,7 +3,8 @@
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import type { EconomicEvent } from "@prisma/client";
+import type { EconomicEvent } from "../types";
+
 
 interface Props {
   events: EconomicEvent[];
