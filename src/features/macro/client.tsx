@@ -212,6 +212,19 @@ export function MacroClient({ snapshot, events: serverEvents, positions }: Props
             </div>
         </div>
 
+        {/* Yield Curve & Stress Replay */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 break-inside-avoid">
+            <Card className="p-6 bg-slate-900 border-white/10 shadow-lg min-h-[300px]">
+               <MacroChart />
+            </Card>
+            <Card className="p-6 bg-slate-900 border-white/10 shadow-lg min-h-[300px] no-print">
+               <div className="flex items-center gap-2 mb-4">
+                   <h4 className="font-semibold text-slate-200">Stress Replay</h4>
+               </div>
+               <HistoricalReplay />
+            </Card>
+        </div>
+
         {/* VaR and Spider Row */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-[300px] break-inside-avoid">
             <Card className="bg-slate-900 border-white/10 shadow-lg">
@@ -232,18 +245,7 @@ export function MacroClient({ snapshot, events: serverEvents, positions }: Props
             </Card>
         </div>
 
-        {/* Yield Curve & Stress Replay */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 break-inside-avoid">
-            <Card className="p-6 bg-slate-900 border-white/10 shadow-lg min-h-[300px]">
-               <MacroChart />
-            </Card>
-            <Card className="p-6 bg-slate-900 border-white/10 shadow-lg min-h-[300px] no-print">
-               <div className="flex items-center gap-2 mb-4">
-                   <h4 className="font-semibold text-slate-200">Stress Replay</h4>
-               </div>
-               <HistoricalReplay />
-            </Card>
-        </div>
+        
 
         {/* NEW: Stress Packs Table spans the full width at the bottom */}
         <div className="break-inside-avoid dark-scrollbar">

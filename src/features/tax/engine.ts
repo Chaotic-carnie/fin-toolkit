@@ -1,4 +1,4 @@
-import { addMonths, differenceInDays, isAfter, parseISO, format } from 'date-fns';
+import { addMonths, addDays, differenceInDays, isAfter, parseISO, format } from 'date-fns';
 import { TaxComputeRequest, TaxComputeResponse, TaxCore } from './types';
 
 // --- STATUTORY CONSTANTS ---
@@ -35,6 +35,10 @@ const computeCore = (req: TaxComputeRequest, saleOverride?: number): TaxCore => 
   const acquired = parseISO(req.acquired_date);
   const holdingDays = differenceInDays(sold, acquired);
   const notes: string[] = [];
+
+  if (sold < EFFECTIVE_DATE_REFORM) {
+    throw new Error("INCOMPATIBLE_DATE: Calculations prior to July 23, 2024 are not supported.");
+  }
   
   const getSlabRate = () => req.marginal_rate ?? 0.30;
 
@@ -90,7 +94,7 @@ const computeCore = (req: TaxComputeRequest, saleOverride?: number): TaxCore => 
           base_rate: sold < EFFECTIVE_DATE_REFORM ? 0.15 : 0.20,
           methodology: "Section 111A: STT-paid equity.",
           notes,
-          earliest_ltcg_date: format(addMonths(acquired, 12), 'yyyy-MM-dd')
+          earliest_ltcg_date: format(addDays(addMonths(acquired, 12), 1), 'yyyy-MM-dd')
         };
       } else {
         const exemption = sold < EFFECTIVE_DATE_REFORM ? 100000 : 125000;
@@ -125,7 +129,7 @@ const computeCore = (req: TaxComputeRequest, saleOverride?: number): TaxCore => 
         base_rate: getSlabRate(),
         methodology: "Immovable property STCG taxed at slab rate.",
         notes,
-        earliest_ltcg_date: format(addMonths(acquired, 24), 'yyyy-MM-dd')
+        earliest_ltcg_date: format(addDays(addMonths(acquired, 24), 1), 'yyyy-MM-dd')
       };
     }
 

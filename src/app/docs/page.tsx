@@ -15,7 +15,7 @@ export default function ApiDocs() {
 
   return (
     // The outer container takes the exact height of the monitor and pushes down for the navbar
-    <div className="h-screen w-full bg-[#020617] flex flex-col pt-0">
+    <div className="h-screen w-full bg-[#020617] flex flex-col pt-0 pb-10">
       
       {/* FIX: Added 'overflow-y-auto'. This explicitly creates a scrollable bounding box for Scalar */}
       <div className="flex-1 overflow-y-auto w-full relative dark-scrollbar mb-10">

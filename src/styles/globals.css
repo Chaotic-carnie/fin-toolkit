@@ -160,3 +160,51 @@
     @apply bg-white/10 rounded-full;
   }
 }
+
+/* src/styles/globals.css */
+
+/* src/styles/globals.css */
+
+/* src/styles/globals.css */
+
+/* src/styles/globals.css */
+
+@layer base {
+  /* target every date input across the site */
+  input[type="date"] {
+    position: relative;
+    color-scheme: dark; /* Forces the popup to stay dark */
+  }
+
+  /* 1. Remove the default browser icon */
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    background: none !important;
+    -webkit-appearance: none;
+    cursor: pointer;
+    
+    /* 2. Create a 'Mask' and fill it with white */
+    -webkit-mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>');
+    mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>');
+    
+    background-color: white !important; /* This defines the icon color */
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    
+    width: 18px;
+    height: 18px;
+    opacity: 0.7;
+    transition: opacity 0.2s ease;
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+  }
+}
+
+@utility date-field {
+  @apply bg-black/20 border-white/10 h-10 text-white text-xs accent-blue-600 rounded-md transition-all hover:border-white/20 focus:border-blue-500/50;
+}

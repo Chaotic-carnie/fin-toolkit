@@ -28,6 +28,7 @@ interface PortfolioStoreState extends PortfolioState {
     daysPassed: number;
     volShock: number;
     priceShock: number;
+    targetLegId?: string | null;
   };
 
   // Actions
@@ -145,7 +146,8 @@ export const usePortfolioStore = create<PortfolioStoreState>()(
             state.trades,
             state.simulation.priceShock,
             state.simulation.volShock,
-            state.simulation.daysPassed
+            state.simulation.daysPassed,
+            state.simulation.targetLegId
         );
 
         // 2. Compute Payoff Curve (Visualizer)
@@ -154,7 +156,8 @@ export const usePortfolioStore = create<PortfolioStoreState>()(
              state.trades, 
              firstSpot, 
              state.simulation.daysPassed,
-             state.simulation.volShock 
+             state.simulation.volShock ,
+             state.simulation.targetLegId
         );
 
         // 3. Compute Heatmap (Matrix)

@@ -40,6 +40,8 @@ export type PricingResult = {
 
 const solveBlackScholes = (inputs: any, isDigital = false) => {
   const { S, K, T, r, q, sigma, type, payout } = inputs;
+  if (T <= 0) return type === 'call' ? Math.max(0, S - K) : Math.max(0, K - S); // Intrinsic value if expired
+  
   const sqrtT = Math.sqrt(T);
   const d1 = (Math.log(S / K) + (r - q + 0.5 * sigma ** 2) * T) / (sigma * sqrtT);
   const d2 = d1 - sigma * sqrtT;
@@ -47,7 +49,9 @@ const solveBlackScholes = (inputs: any, isDigital = false) => {
   const sign = isCall ? 1 : -1;
 
   if (isDigital) {
-    return (payout || 1) * Math.exp(-r * T) * N(sign * d2);
+    // FIX: Ensure payout is treated as a number, defaulting to 1 only if undefined
+    const cash = payout !== undefined ? Number(payout) : 1;
+    return cash * Math.exp(-r * T) * N(sign * d2);
   }
 
   const term1 = S * Math.exp(-q * T) * N(sign * d1);
@@ -56,7 +60,12 @@ const solveBlackScholes = (inputs: any, isDigital = false) => {
 };
 
 const solveBinomial = (inputs: any, isAmerican = false) => {
-  const { S, K, T, r, q, sigma, type, steps } = inputs;
+  // FIX: Added default steps = 100 if undefined
+  const { S, K, T, r, q, sigma, type } = inputs;
+  const steps = inputs.steps || 100; 
+  
+  if (T <= 0) return type === 'call' ? Math.max(0, S - K) : Math.max(0, K - S);
+
   const dt = T / steps;
   const u = Math.exp(sigma * Math.sqrt(dt));
   const d = 1 / u;
@@ -86,37 +95,50 @@ const solveBinomial = (inputs: any, isAmerican = false) => {
 };
 
 const solveMonteCarloBarrier = (inputs: any, useBridge = false) => {
-  const { S, K, T, r, q, sigma, type, H, barrierType, paths, steps, seed } = inputs;
+  const { S, K, T, r, q, sigma, type, seed } = inputs;
+  
+  // FIX 1: Align default H and BarrierType. 
+  // If H > S, default should be 'up-out'. If H < S, 'down-out'.
+  // We default to 'up-out' to match config.ts defaults (H=120, S=100).
+  const H = inputs.H || (type === 'call' ? S * 1.2 : S * 0.8);
+  const barrierType = inputs.barrierType || 'up-out'; // CHANGED from 'down-and-out'
+
+  const paths = inputs.paths || 1000;
+  const steps = inputs.steps || 50;
+
   const dt = T / steps;
   const drift = (r - q - 0.5 * sigma ** 2) * dt;
   const volSqDt = sigma * Math.sqrt(dt);
   const isCall = type === 'call';
   const isUp = barrierType.includes('up');
   const isOut = barrierType.includes('out');
-  
-  // Use Seeded RNG
-  const rng = createRNG(seed || 1234);
 
+  // FIX 2: Instant Knock-out Check (Time 0)
+  // If the starting spot is already violating the barrier, value is 0 immediately.
+  if (isUp && S >= H && isOut) return 0;
+  if (!isUp && S <= H && isOut) return 0;
+  
+  const rng = createRNG(seed || 1234);
   let sum = 0;
 
   for (let i = 0; i < paths; i++) {
     let currentS = S;
-    let alive = true;
+    let alive = true; // "alive" means "has not hit the barrier"
 
     for (let j = 0; j < steps; j++) {
       const prevS = currentS;
       currentS = currentS * Math.exp(drift + volSqDt * randn(rng));
 
       let hit = false;
-      if (useBridge) {
-        const maxS = Math.max(prevS, currentS);
-        const minS = Math.min(prevS, currentS);
-        if (isUp && maxS >= H) hit = true;
-        else if (!isUp && minS <= H) hit = true;
-      } 
-      
       if (isUp && currentS >= H) hit = true;
       if (!isUp && currentS <= H) hit = true;
+
+      // Brownian Bridge Correction
+      if (useBridge && !hit) {
+        // Probability of hitting barrier between steps
+        const p_hit = Math.exp(-2 * Math.log(prevS / H) * Math.log(currentS / H) / (sigma ** 2 * dt));
+        if (rng() < p_hit) hit = true;
+      }
 
       if (hit) {
         alive = false;
@@ -124,32 +146,51 @@ const solveMonteCarloBarrier = (inputs: any, useBridge = false) => {
       }
     }
 
-    if (isOut && !alive) { sum += 0; continue; }
+    // Payoff Logic
+    // If Out-option: Must remain alive to pay.
+    // If In-option: Must die (hit barrier) to pay.
+    
+    if (isOut && !alive) continue; 
+    if (!isOut && alive) continue; 
 
-    if (alive) {
-      const payoff = Math.max(0, isCall ? currentS - K : K - currentS);
-      sum += payoff;
-    }
+    const payoff = Math.max(0, isCall ? currentS - K : K - currentS);
+    sum += payoff;
   }
 
   return (sum / paths) * Math.exp(-r * T);
 };
 
 const solveAsian = (inputs: any, isGeometric = false) => {
-  const { S, K, T, r, q, sigma, type, paths, fixings, seed } = inputs;
+  // FIX: Ensure types are destructured from inputs correctly
+  const { S, K, T, r, q, sigma, type, seed } = inputs;
+  const paths = inputs.paths || 1000;
+  const fixings = inputs.fixings || 30;
   const isCall = type === 'call';
 
   if (isGeometric) {
-    const adjSigma = sigma / Math.sqrt(3);
-    const b = 0.5 * (r - q - 0.5 * sigma ** 2) + 0.5 * adjSigma ** 2;
-    const d1 = (Math.log(S / K) + (b + 0.5 * adjSigma ** 2) * T) / (adjSigma * Math.sqrt(T));
-    const d2 = d1 - adjSigma * Math.sqrt(T);
-    const term1 = S * Math.exp((b - r) * T) * N(isCall ? d1 : -d1);
-    const term2 = K * Math.exp(-r * T) * N(isCall ? d2 : -d2);
-    return isCall ? term1 - term2 : term2 - term1;
+    // FIX: Standard Geometric Asian Adjustment
+    // Effective Volatility: sigma_geo = sigma / sqrt(3)
+    // Effective Cost of Carry: b_geo = 0.5 * (r - q - sigma^2/6)
+    // Actually, usually priced as BS(S, K, T, r, q_eff, sigma_eff)
+    // where q_eff = r - 0.5*(r - q - sigma^2/6).
+    
+    const sigmaGeo = sigma / Math.sqrt(3);
+    const bGeo = 0.5 * (r - q - (sigma ** 2) / 6);
+    
+    // We can map this to Black-Scholes Formula by adjusting 'q'
+    // standard BS uses q in d1 as: (r - q + 0.5*sigma^2)
+    // We need d1 = (ln(S/K) + (bGeo + 0.5*sigmaGeo^2)*T) / ...
+    
+    const d1 = (Math.log(S / K) + (bGeo + 0.5 * sigmaGeo ** 2) * T) / (sigmaGeo * Math.sqrt(T));
+    const d2 = d1 - sigmaGeo * Math.sqrt(T);
+    
+    const sign = isCall ? 1 : -1;
+    const term1 = S * Math.exp((bGeo - r) * T) * N(sign * d1);
+    const term2 = K * Math.exp(-r * T) * N(sign * d2);
+    
+    return sign * (term1 - term2);
   }
 
-  // Arithmetic MC
   const dt = T / fixings;
   const drift = (r - q - 0.5 * sigma ** 2) * dt;
   const volSqDt = sigma * Math.sqrt(dt);
@@ -171,18 +212,33 @@ const solveAsian = (inputs: any, isGeometric = false) => {
 };
 
 const calculatePrice = (methodKey: string, inputs: any) => {
+  // Ensure basic inputs exist
+  const S = inputs.S || 100;
+  const K = inputs.K || 100;
+  const T = inputs.T || 1.0;
+  const r = inputs.r || 0.05;
+  const q = inputs.q || 0;
+  const sigma = inputs.sigma || 0.2;
+  const type = inputs.option_type || 'call';
+  
+  const cleaned = { ...inputs, S, K, T, r, q, sigma, type };
+
   switch (methodKey) {
-    case 'black_scholes': return solveBlackScholes(inputs, inputs.payout !== undefined);
-    case 'binomial_crr': return solveBinomial(inputs, inputs.key === 'american');
-    case 'mc_discrete': return solveMonteCarloBarrier(inputs, false);
-    case 'mc_bridge': return solveMonteCarloBarrier(inputs, true);
-    case 'geometric_closed': return solveAsian(inputs, true);
-    case 'arithmetic_mc': return solveAsian(inputs, false);
+    case 'black_scholes': 
+      // FIX: Check if payout is explicitly in the inputs to trigger Digital pricing
+      return solveBlackScholes(cleaned, cleaned.payout !== undefined);
+    case 'binomial_crr': return solveBinomial(cleaned, cleaned.key === 'american');
+    case 'mc_discrete': return solveMonteCarloBarrier(cleaned, false);
+    case 'mc_bridge': return solveMonteCarloBarrier(cleaned, true);
+    case 'geometric_closed': return solveAsian(cleaned, true);
+    case 'arithmetic_mc': return solveAsian(cleaned, false);
     case 'discounted_value': 
-      return (inputs.S * Math.exp(-inputs.q * inputs.T)) - (inputs.K * Math.exp(-inputs.r * inputs.T));
+      // Note: This calculates Value (NPV), not Forward Price.
+      return (S * Math.exp(-q * T)) - (K * Math.exp(-r * T));
     default: return 0;
   }
 };
+
 
 export const computeResult = async (methodKey: string, instrumentKey: string, inputs: any): Promise<PricingResult> => {
   return new Promise((resolve) => {

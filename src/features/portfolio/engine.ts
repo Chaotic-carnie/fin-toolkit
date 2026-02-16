@@ -132,7 +132,7 @@ const analyzePayoff = (points: PayoffPoint[]) => {
 
 // --- CORE EXPORTS ---
 
-export const computePortfolioMetrics = (legs: PortfolioLeg[], globalSpotShock = 0, globalVolShock = 0, daysPassed = 0) => {
+export const computePortfolioMetrics = (legs: PortfolioLeg[], globalSpotShock = 0, globalVolShock = 0, daysPassed = 0,targetLegId?: string | null) => {
   let totalValue = 0;
   let netGreeks = { delta: 0, gamma: 0, vega: 0, theta: 0, rho: 0, vanna: 0, volga: 0 };
   const legResults: Record<string, PricingResult> = {};
@@ -145,13 +145,21 @@ export const computePortfolioMetrics = (legs: PortfolioLeg[], globalSpotShock = 
   for (const leg of legs) {
     if (!leg.active) continue;
     const p = leg.params;
-    
-    // FIX: globalSpotShock is a percentage (e.g., 5). Divide by 100.
-    const spot = safeNum(p.spot) * (1 + (globalSpotShock / 100));
-    const T = Math.max(0, safeNum(p.time_to_expiry) - yearsPassed);
+
+    const isTarget = !targetLegId || targetLegId === leg.id;
+
+    const spot = isTarget 
+      ? safeNum(p.spot) * (1 + (globalSpotShock / 100)) 
+      : safeNum(p.spot);
+
+    const vol = isTarget 
+      ? Math.max(0.0001, safeNum(p.vol) + globalVolShock) 
+      : safeNum(p.vol);
+
+    const T = Math.max(0, safeNum(p.time_to_expiry) - (daysPassed / 365));
     const r = safeNum(p.risk_free_rate);
-    const vol = Math.max(0.0001, safeNum(p.vol) + globalVolShock);
     const qty = safeNum(leg.quantity);
+    
     
     currentSpot = spot;
 
@@ -178,7 +186,15 @@ export const computePortfolioMetrics = (legs: PortfolioLeg[], globalSpotShock = 
   };
 };
 
-export const computePayoffCurve = (legs: PortfolioLeg[], centerSpot: number, daysPassed = 0, volShock = 0): PayoffPoint[] => {
+// src/features/portfolio/engine.ts
+
+export const computePayoffCurve = (
+  legs: PortfolioLeg[], 
+  centerSpot: number, 
+  daysPassed = 0, 
+  volShock = 0,
+  targetLegId?: string | null
+): PayoffPoint[] => {
   const points: PayoffPoint[] = [];
   const range = 0.5;
   const steps = 100;
@@ -204,13 +220,19 @@ export const computePayoffCurve = (legs: PortfolioLeg[], centerSpot: number, day
       const p = leg.params;
       const qty = safeNum(leg.quantity);
       
-      // 1. Expiry Value (T=0) -> Pass extremely small T to prevent division by zero in Black-Scholes d1
+      // 1. Expiry Value (Standard T=0 logic)
       const resExpiry = priceLegInternal(leg, s, 0.00001, safeNum(p.risk_free_rate), safeNum(p.vol));
       expiryVal += resExpiry.price * qty;
 
-      // 2. Current Value (T=Now + Simulation)
+      // 2. Current Value (Simulation)
+      // FIX: Only apply the volShock if this leg is the target (or if no target exists)
+      const isTarget = !targetLegId || targetLegId === leg.id;
+      
       const T_sim = Math.max(0.00001, safeNum(p.time_to_expiry) - yearsPassed);
-      const vol_sim = Math.max(0.0001, safeNum(p.vol) + volShock);
+      const vol_sim = isTarget 
+        ? Math.max(0.0001, safeNum(p.vol) + volShock) 
+        : safeNum(p.vol);
+
       const resCurrent = priceLegInternal(leg, s, T_sim, safeNum(p.risk_free_rate), vol_sim);
       currentVal += resCurrent.price * qty;
     }
@@ -223,6 +245,7 @@ export const computePayoffCurve = (legs: PortfolioLeg[], centerSpot: number, day
   }
   return points;
 };
+
 
 export const computeHeatmap = (legs: PortfolioLeg[], currentSpot: number): HeatmapData => {
     const steps = 5;
