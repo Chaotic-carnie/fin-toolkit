@@ -1,14 +1,11 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react"; 
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAllocationStore } from "@/features/allocation/store";
 import type { AllocationComputeRequest, AllocationComputeResponse } from "@/app/api/docs/schemas";
-import dynamic from "next/dynamic";
-// Rename the default import to something unique like 'JoyrideTour'
-import JoyrideTour, { type Step,type CallBackProps, STATUS, ACTIONS, EVENTS } from "react-joyride";
-// Forces Next.js to ignore this during the build phase
-const Joyride = dynamic(() => import("react-joyride"), { ssr: false });
+import nextDynamic from "next/dynamic";
+import JoyrideTour, { type Step, type CallBackProps, STATUS, ACTIONS, EVENTS } from "react-joyride";
 
 import { 
   Calculator, Layers, Filter, RefreshCw, AlertCircle, Play, TrendingUp, Presentation
@@ -19,6 +16,11 @@ import { Input } from "@/components/ui/input";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine
 } from "recharts";
+
+// Forces Next.js to ignore this during the build phase
+const Joyride = nextDynamic(() => import("react-joyride"), { ssr: false });
+
+export const dynamic = "force-dynamic";
 
 const formatMetric = (val: number | null | undefined, isPct: boolean = false, decimals: number = 2): string => {
   if (val !== undefined && val !== null && !isNaN(val)) {
@@ -44,8 +46,8 @@ const TOUR_STEPS: Step[] = [
     target: ".tour-run-button",
     content: "Click this button to run the Monte Carlo simulation. The tour will automatically continue once the computation is complete!",
     title: "3. Run Simulation",
-    spotlightClicks: true, // Crucial: Allows the user to actually click the button beneath the spotlight!
-    hideFooter: true,      // Crucial: Hides 'Next' so the user is forced to click Run to advance.
+    spotlightClicks: true,
+    hideFooter: true,
   },
   {
     target: ".tour-results",
@@ -54,8 +56,10 @@ const TOUR_STEPS: Step[] = [
   }
 ];
 
-export default function AllocationPage() {
+// --- 1. RENAME MAIN LOGIC COMPONENT (Internal Only) ---
+function AllocationContent() {
   const store = useAllocationStore();
+  // Hooks are safe here because this component is wrapped below
   const searchParams = useSearchParams();
 
   // --- Controlled Joyride State ---
@@ -75,18 +79,13 @@ export default function AllocationPage() {
     }
   }, [searchParams]);
 
-  // FIXED: Handles all exit states cleanly to prevent stuck tooltips
   const handleJoyrideCallback = (data: CallBackProps) => {
     const { status, type, action, index } = data;
-    
-    // If the tour is finished, skipped, or the user hits the close action
     if ([STATUS.FINISHED, STATUS.SKIPPED].includes(status as any) || action === ACTIONS.CLOSE) {
       setRunTour(false);
       setStepIndex(0);
       return; 
     } 
-    
-    // Step increment logic
     if (type === EVENTS.STEP_AFTER) {
       if (action === ACTIONS.NEXT) {
         setStepIndex(index + 1);
@@ -131,10 +130,8 @@ export default function AllocationPage() {
       store.setField("error", err.message);
     } finally {
       store.setField("isLoading", false);
-      
-      // AUTO-ADVANCE TOUR AFTER RUN COMPLETES
       if (runTour && stepIndex === 2) {
-        setTimeout(() => setStepIndex(3), 300); // 300ms delay ensures DOM paints the results first
+        setTimeout(() => setStepIndex(3), 300);
       }
     }
   };
@@ -156,7 +153,7 @@ export default function AllocationPage() {
   return (
     <div className="h-full w-full bg-[#020617] text-white flex flex-col overflow-hidden font-sans">
       
-      <JoyrideTour
+      <Joyride
         callback={handleJoyrideCallback}
         continuous
         stepIndex={stepIndex} 
@@ -164,7 +161,7 @@ export default function AllocationPage() {
         disableScrolling={true} 
         showProgress
         showSkipButton
-        hideCloseButton={true} // FIXED: Removed the redundant 'X' button
+        hideCloseButton={true}
         steps={TOUR_STEPS}
         styles={{
           options: {
@@ -216,54 +213,54 @@ export default function AllocationPage() {
              <div className="absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,_#3b82f605_0%,_transparent_50%)] pointer-events-none" />
              
              <div className="relative z-10 space-y-6">
-                
-                <div className="tour-edge-settings relative z-10">
-                  <h3 className="text-[9px] md:text-[10px] uppercase tracking-widest text-blue-400 font-bold flex items-center gap-2 border-b border-white/5 pb-2 mb-4">
-                    <TrendingUp className="w-3 h-3" /> Statistical Edge
-                  </h3>
-                  <div className="grid grid-cols-2 gap-3 md:gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-[9px] md:text-[10px] uppercase tracking-widest text-slate-400 font-bold">Win Rate (Dec)</label>
-                      <Input type="number" step="0.01" className="h-9 md:h-8 bg-white/5 border-white/10 text-xs font-mono" value={store.winRate} onChange={(e) => store.setField("winRate", parseFloat(e.target.value) || 0)} />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[9px] md:text-[10px] uppercase tracking-widest text-slate-400 font-bold">Payoff Ratio</label>
-                      <Input type="number" step="0.01" className="h-9 md:h-8 bg-white/5 border-white/10 text-xs font-mono" value={store.payoffRatio} onChange={(e) => store.setField("payoffRatio", parseFloat(e.target.value) || 0)} />
-                    </div>
-                  </div>
-                </div>
+               
+               <div className="tour-edge-settings relative z-10">
+                 <h3 className="text-[9px] md:text-[10px] uppercase tracking-widest text-blue-400 font-bold flex items-center gap-2 border-b border-white/5 pb-2 mb-4">
+                   <TrendingUp className="w-3 h-3" /> Statistical Edge
+                 </h3>
+                 <div className="grid grid-cols-2 gap-3 md:gap-4">
+                   <div className="space-y-1.5">
+                     <label className="text-[9px] md:text-[10px] uppercase tracking-widest text-slate-400 font-bold">Win Rate (Dec)</label>
+                     <Input type="number" step="0.01" className="h-9 md:h-8 bg-white/5 border-white/10 text-xs font-mono" value={store.winRate} onChange={(e) => store.setField("winRate", parseFloat(e.target.value) || 0)} />
+                   </div>
+                   <div className="space-y-1.5">
+                     <label className="text-[9px] md:text-[10px] uppercase tracking-widest text-slate-400 font-bold">Payoff Ratio</label>
+                     <Input type="number" step="0.01" className="h-9 md:h-8 bg-white/5 border-white/10 text-xs font-mono" value={store.payoffRatio} onChange={(e) => store.setField("payoffRatio", parseFloat(e.target.value) || 0)} />
+                   </div>
+                 </div>
+               </div>
 
-                <div className="tour-capital-settings relative z-10 pt-2">
-                  <h3 className="text-[9px] md:text-[10px] uppercase tracking-widest text-blue-400 font-bold flex items-center gap-2 border-b border-white/5 pb-2 mb-4">
-                    <Calculator className="w-3 h-3" /> Capital & Risk
-                  </h3>
-                  <div className="grid grid-cols-2 gap-3 md:gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-[9px] md:text-[10px] uppercase tracking-widest text-slate-400 font-bold">Starting Capital</label>
-                      <Input type="number" step="1000" className="h-9 md:h-8 bg-white/5 border-white/10 text-xs font-mono" value={store.startingCapital} onChange={(e) => store.setField("startingCapital", parseFloat(e.target.value) || 0)} />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[9px] md:text-[10px] uppercase tracking-widest text-slate-400 font-bold">Ruin Level (Dec)</label>
-                      <Input type="number" step="0.01" className="h-9 md:h-8 bg-white/5 border-white/10 text-xs font-mono" value={store.ruinDrawdownPct} onChange={(e) => store.setField("ruinDrawdownPct", parseFloat(e.target.value) || 0)} />
-                    </div>
-                  </div>
-                </div>
+               <div className="tour-capital-settings relative z-10 pt-2">
+                 <h3 className="text-[9px] md:text-[10px] uppercase tracking-widest text-blue-400 font-bold flex items-center gap-2 border-b border-white/5 pb-2 mb-4">
+                   <Calculator className="w-3 h-3" /> Capital & Risk
+                 </h3>
+                 <div className="grid grid-cols-2 gap-3 md:gap-4">
+                   <div className="space-y-1.5">
+                     <label className="text-[9px] md:text-[10px] uppercase tracking-widest text-slate-400 font-bold">Starting Capital</label>
+                     <Input type="number" step="1000" className="h-9 md:h-8 bg-white/5 border-white/10 text-xs font-mono" value={store.startingCapital} onChange={(e) => store.setField("startingCapital", parseFloat(e.target.value) || 0)} />
+                   </div>
+                   <div className="space-y-1.5">
+                     <label className="text-[9px] md:text-[10px] uppercase tracking-widest text-slate-400 font-bold">Ruin Level (Dec)</label>
+                     <Input type="number" step="0.01" className="h-9 md:h-8 bg-white/5 border-white/10 text-xs font-mono" value={store.ruinDrawdownPct} onChange={(e) => store.setField("ruinDrawdownPct", parseFloat(e.target.value) || 0)} />
+                   </div>
+                 </div>
+               </div>
 
-                <div className="space-y-4 pt-2 pb-6">
-                  <h3 className="text-[9px] md:text-[10px] uppercase tracking-widest text-blue-400 font-bold flex items-center gap-2 border-b border-white/5 pb-2">
-                    <Layers className="w-3 h-3" /> Simulation Engine
-                  </h3>
-                  <div className="grid grid-cols-2 gap-3 md:gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-[9px] md:text-[10px] uppercase tracking-widest text-slate-400 font-bold">Sim Runs</label>
-                      <Input type="number" step="100" className="h-9 md:h-8 bg-white/5 border-white/10 text-xs font-mono text-slate-400" value={store.simRuns} onChange={(e) => store.setField("simRuns", parseInt(e.target.value) || 0)} />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[9px] md:text-[10px] uppercase tracking-widest text-slate-400 font-bold">Trades per Run</label>
-                      <Input type="number" step="10" className="h-9 md:h-8 bg-white/5 border-white/10 text-xs font-mono text-slate-400" value={store.simTrades} onChange={(e) => store.setField("simTrades", parseInt(e.target.value) || 0)} />
-                    </div>
-                  </div>
-                </div>
+               <div className="space-y-4 pt-2 pb-6">
+                 <h3 className="text-[9px] md:text-[10px] uppercase tracking-widest text-blue-400 font-bold flex items-center gap-2 border-b border-white/5 pb-2">
+                   <Layers className="w-3 h-3" /> Simulation Engine
+                 </h3>
+                 <div className="grid grid-cols-2 gap-3 md:gap-4">
+                   <div className="space-y-1.5">
+                     <label className="text-[9px] md:text-[10px] uppercase tracking-widest text-slate-400 font-bold">Sim Runs</label>
+                     <Input type="number" step="100" className="h-9 md:h-8 bg-white/5 border-white/10 text-xs font-mono text-slate-400" value={store.simRuns} onChange={(e) => store.setField("simRuns", parseInt(e.target.value) || 0)} />
+                   </div>
+                   <div className="space-y-1.5">
+                     <label className="text-[9px] md:text-[10px] uppercase tracking-widest text-slate-400 font-bold">Trades per Run</label>
+                     <Input type="number" step="10" className="h-9 md:h-8 bg-white/5 border-white/10 text-xs font-mono text-slate-400" value={store.simTrades} onChange={(e) => store.setField("simTrades", parseInt(e.target.value) || 0)} />
+                   </div>
+                 </div>
+               </div>
 
              </div>
           </div>
@@ -331,5 +328,14 @@ export default function AllocationPage() {
 
       </div>
     </div>
+  );
+}
+
+// --- 3. THE NEW WRAPPER (This is what Next.js sees) ---
+export default function AllocationPage() {
+  return (
+    <Suspense fallback={<div className="flex h-screen w-full items-center justify-center bg-[#020617] text-slate-500 font-mono text-sm">LOADING ALLOCATION ENGINE...</div>}>
+      <AllocationContent />
+    </Suspense>
   );
 }

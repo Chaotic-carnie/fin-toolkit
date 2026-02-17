@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+// 1. Add Suspense to imports
+import React, { useState, useMemo, useEffect, useRef, Suspense } from "react";
 import { recommendStrategies, normalizeView, pnlMetrics } from "~/features/strategy/engine";
 import { computePortfolioMetrics } from "~/features/portfolio/engine";
 import { Input } from "~/components/ui/input";
@@ -13,17 +14,19 @@ import { Settings2, Activity, TrendingUp, Target, ListChecks, BarChart3, Info, L
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ReferenceLine, ResponsiveContainer } from "recharts";
 import { usePortfolioStore } from "~/features/portfolio/store"; 
 import { useSearchParams, useRouter } from "next/navigation";
-import dynamic from "next/dynamic";
+import nextDynamic from "next/dynamic"; // <--- 2. Rename this import
 import type { Step, CallBackProps } from "react-joyride";
 
 // Forces Next.js to ignore this during the build phase
-const Joyride = dynamic(() => import("react-joyride"), { ssr: false });
+const Joyride = nextDynamic(() => import("react-joyride"), { ssr: false });
 import { Presentation } from "lucide-react";
 import { Download, Loader2 } from "lucide-react";
 import { jsPDF } from "jspdf";
-import { toJpeg } from "html-to-image"; // Changed from toPng
+import { toJpeg } from "html-to-image"; 
 import { toast } from "sonner";
-import { useRef } from "react";
+
+// 3. Add Force Dynamic
+export const dynamic = "force-dynamic";
 
 // --- Tour Steps ---
 const TOUR_STEPS: Step[] = [
@@ -32,7 +35,7 @@ const TOUR_STEPS: Step[] = [
     content: "Start by defining the current market environment. Set the spot price, implied volatility, and risk-free rate.",
     title: "1. Market Environment",
     disableBeacon: true,
-    placement: "bottom", // Ensures tooltip drops below the inputs
+    placement: "bottom", 
   },
   {
     target: ".tour-view-settings",
@@ -44,7 +47,7 @@ const TOUR_STEPS: Step[] = [
     target: ".tour-constraints",
     content: "Set your risk parameters here. Do you want strictly defined-risk trades? What's your max acceptable loss?",
     title: "3. Constraints",
-    placement: "top", // Tooltip goes above to avoid pushing layout
+    placement: "top", 
   },
   {
     target: ".tour-compute-button",
@@ -52,7 +55,7 @@ const TOUR_STEPS: Step[] = [
     title: "4. Run Engine",
     spotlightClicks: true, 
     hideFooter: true,      
-    placement: "top",      // FIX: Forces the tooltip above the button so you can click it!
+    placement: "top",      
   },
   {
     target: ".tour-candidate-results",
@@ -62,7 +65,8 @@ const TOUR_STEPS: Step[] = [
   }
 ];
 
-export default function StrategyPage() {
+// --- 4. MAIN LOGIC (Renamed to StrategyContent) ---
+function StrategyContent() {
   // 1. Inputs
   const [market, setMarket] = useState({ spot: 100, vol: 0.20, rate: 0.03, dividend: 0.0, skew: 0.15 });
   const [view, setView] = useState({ 
@@ -129,7 +133,7 @@ export default function StrategyPage() {
     }
   }, [market, view, constraints, gen, hasRun, candidates, selIdx, isHydrated]);
 
-  // NEW SCROLL FIX: Calculate precise mathematical offsets instead of using `scrollIntoView`
+  // NEW SCROLL FIX
   useEffect(() => {
     if (runTour) {
       const targetSelector = TOUR_STEPS[stepIndex]?.target as string;
@@ -140,7 +144,6 @@ export default function StrategyPage() {
           const mainScroll = document.getElementById('main-scroll');
           
           if (element) {
-            // Determine which container is currently handling the scroll (Mobile vs Desktop)
             const container = (sidebarScroll && sidebarScroll.scrollHeight > sidebarScroll.clientHeight) 
                               ? sidebarScroll 
                               : mainScroll;
@@ -148,7 +151,6 @@ export default function StrategyPage() {
             if (container) {
               const containerRect = container.getBoundingClientRect();
               const elementRect = element.getBoundingClientRect();
-              // Scroll the internal div by the exact pixel difference, minus 80px for padding
               const scrollTop = container.scrollTop + (elementRect.top - containerRect.top) - 80;
               container.scrollTo({ top: Math.max(0, scrollTop), behavior: 'smooth' });
             }
@@ -175,14 +177,18 @@ export default function StrategyPage() {
 
   const handleJoyrideCallback = (data: CallBackProps) => {
     const { status, type, action, index } = data;
-    if ([STATUS.FINISHED, STATUS.SKIPPED].includes(status as any) || action === ACTIONS.CLOSE) {
+    // @ts-ignore
+    if (['finished', 'skipped'].includes(status) || action === 'close') {
       setRunTour(false);
       setStepIndex(0);
       return; 
     } 
-    if (type === EVENTS.STEP_AFTER) {
-      if (action === ACTIONS.NEXT) setStepIndex(index + 1);
-      else if (action === ACTIONS.PREV) setStepIndex(index - 1);
+    // @ts-ignore
+    if (type === 'step:after') {
+      // @ts-ignore
+      if (action === 'next') setStepIndex(index + 1);
+      // @ts-ignore
+      else if (action === 'prev') setStepIndex(index - 1);
     }
   };
 
@@ -228,14 +234,9 @@ export default function StrategyPage() {
     });
   };
 
-
-
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
 
-  // --- PDF Logic: trigger this to start the process ---
-  // --- PDF Export Logic (Optimized & Paginated) ---
-  // --- PDF Export Logic (Clean & Optimized) ---
   const handleExportPDF = () => {
     setIsGeneratingPdf(true); 
   };
@@ -250,7 +251,6 @@ export default function StrategyPage() {
       try {
         toast.info("Generating report... (Please wait)");
         
-        // 1. Wait for Charts to Render (Critical for Ghost Report)
         await new Promise(resolve => setTimeout(resolve, 2500));
 
         const pdf = new jsPDF("p", "mm", "a4");
@@ -262,10 +262,8 @@ export default function StrategyPage() {
         for (let i = 0; i < sections.length; i++) {
           const section = sections[i] as HTMLElement;
           
-          // Breathing room for UI
           await new Promise(resolve => setTimeout(resolve, 100));
 
-          // 2. Capture as JPEG
           const dataUrl = await toJpeg(section, {
             quality: 0.8,
             pixelRatio: 2,
@@ -277,7 +275,6 @@ export default function StrategyPage() {
             }
           });
 
-          // --- SAFETY CHECK: Verify Data URL ---
           if (!dataUrl || dataUrl === 'data:,') {
              console.warn(`Skipping empty section index ${i}`);
              continue;
@@ -286,22 +283,18 @@ export default function StrategyPage() {
           const imgProps = pdf.getImageProperties(dataUrl);
           const imgHeight = (imgProps.height * pageWidth) / imgProps.width;
           
-          // 3. Pagination Logic
           let heightLeft = imgHeight;
           let position = 0;
           let firstPageOfSection = true;
 
           while (heightLeft > 0) {
-            // Add new page if needed
             if (i > 0 || !firstPageOfSection) {
                pdf.addPage();
             }
             
-            // Background
             pdf.setFillColor(2, 6, 23);
             pdf.rect(0, 0, pageWidth, pageHeight, "F");
 
-            // Render Image
             pdf.addImage(dataUrl, "JPEG", 0, position, pageWidth, imgHeight);
             
             heightLeft -= pageHeight;
@@ -335,7 +328,7 @@ export default function StrategyPage() {
         continuous
         stepIndex={stepIndex} 
         run={runTour}
-        disableScrolling={true} // Strict scroll blocking, we handle it manually now!
+        disableScrolling={true} 
         showProgress
         showSkipButton
         hideCloseButton={true}
@@ -348,7 +341,7 @@ export default function StrategyPage() {
             textColor: '#f8fafc', 
             arrowColor: '#0f172a',
             overlayColor: 'rgba(0, 0, 0, 0.75)',
-            spotlightPadding: 8, // Adds a nice breathing room around the cutouts
+            spotlightPadding: 8, 
           },
           tooltipContainer: { textAlign: 'left' },
           buttonNext: { backgroundColor: '#2563eb', borderRadius: '6px', padding: '8px 16px', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase' },
@@ -357,7 +350,6 @@ export default function StrategyPage() {
         }}
       />
 
-      {/* Added ID 'main-scroll' to wrapper for mobile scroll tracking */}
       <div id="main-scroll" className="flex-1 flex flex-col xl:flex-row dark-scrollbar overflow-y-auto xl:overflow-hidden w-full">
         
         {/* ================= LEFT SIDEBAR (INPUTS) ================= */}
@@ -382,10 +374,8 @@ export default function StrategyPage() {
             </div>
           </div>
 
-          {/* Added js-print-scroll class */}
-<div id="sidebar-scroll" className="flex-1 xl:overflow-y-auto p-4 md:p-5 space-y-6 dark-scrollbar bg-transparent xl:bg-slate-950/20 scroll-smooth js-print-scroll">
+          <div id="sidebar-scroll" className="flex-1 xl:overflow-y-auto p-4 md:p-5 space-y-6 dark-scrollbar bg-transparent xl:bg-slate-950/20 scroll-smooth js-print-scroll">
 
-            {/* FIX 1: Added -mt-2 pt-2 to shift the spotlight up */}
             <section className="tour-market-inputs rounded-lg p-2 -mt-2 pt-2 -mx-2">
               <SidebarHeader label="Market Inputs" icon={<Activity className="w-3.5 h-3.5"/>} color="text-blue-400" />
               <div className="grid grid-cols-2 gap-3 mt-3">
@@ -458,7 +448,6 @@ export default function StrategyPage() {
               </div>
             </section>
 
-            {/* Hidden from tour to keep it brief */}
             <section className="pt-4 border-t border-slate-800/40">
               <SidebarHeader label="Construction" icon={<Settings2 className="w-3.5 h-3.5"/>} color="text-purple-400" />
               <div className="grid grid-cols-2 gap-3 mt-3">
@@ -497,12 +486,10 @@ export default function StrategyPage() {
                 size="sm" 
                 className="h-7 text-[9px] uppercase font-bold text-emerald-400 border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors"
                 onClick={handleExportPDF}
-                disabled={isGeneratingPdf} // CHANGED: was isExporting
+                disabled={isGeneratingPdf} 
                 data-html2canvas-ignore="true"
               >
-                {/* CHANGED: was isExporting */}
                 {isGeneratingPdf ? <Loader2 className="w-3 h-3 mr-1.5 animate-spin" /> : <Download className="w-3 h-3 mr-1.5" />}
-                {/* CHANGED: was isExporting */}
                 {isGeneratingPdf ? "Generating..." : "Export Report"}
               </Button>
             <div className="hidden lg:block">
@@ -526,7 +513,7 @@ export default function StrategyPage() {
               </TabsList>
             </div>
 
-<TabsContent value="candidates" className="tour-candidate-results flex-1 xl:overflow-y-auto p-4 md:p-8 dark-scrollbar mt-0 js-print-scroll">              <div className="max-w-[1000px] mx-auto">
+            <TabsContent value="candidates" className="tour-candidate-results flex-1 xl:overflow-y-auto p-4 md:p-8 dark-scrollbar mt-0 js-print-scroll">              <div className="max-w-[1000px] mx-auto">
                 {!hasRun || candidates.length === 0 ? (
                   <div className="h-[300px] md:h-[400px] flex items-center justify-center text-slate-500 text-xs md:text-sm font-bold uppercase tracking-widest text-center px-4">
                     Set parameters and click "Find Candidates"
@@ -591,7 +578,6 @@ export default function StrategyPage() {
           
           {/* --- SECTION 1: SUMMARY --- */}
           <div className="report-section p-10 flex flex-col gap-8 bg-[#020617] min-h-screen">
-             {/* ... (Keep your existing Summary Content) ... */}
              <div className="border-b border-blue-500/30 pb-6 mb-4">
                 <h1 className="text-4xl font-black uppercase tracking-tighter text-white">Strategy <span className="text-blue-500">Report</span></h1>
                 <p className="text-slate-400 font-bold tracking-widest mt-2 uppercase">Generated on {new Date().toLocaleDateString()}</p>
@@ -665,6 +651,15 @@ export default function StrategyPage() {
         </div>
       )}
     </main>
+  );
+}
+
+// --- 5. NEW WRAPPER COMPONENT ---
+export default function StrategyPage() {
+  return (
+    <Suspense fallback={<div className="flex h-screen w-full items-center justify-center bg-[#020617] text-slate-500 font-mono text-sm">LOADING STRATEGY ENGINE...</div>}>
+      <StrategyContent />
+    </Suspense>
   );
 }
 
@@ -889,7 +884,7 @@ function ScenarioAnalysisDashboard({ cand, market, view, gen }: any) {
           <div className="flex w-full md:w-auto items-center md:flex-col md:items-end gap-3 md:gap-2 justify-between">
             {analyzed.pop && (
               <Badge variant="outline" className="text-[10px] md:text-[12px] uppercase tracking-widest px-2 md:px-3 py-1 text-cyan-400 bg-cyan-400/10 border-cyan-400/30">
-                 POP: {analyzed.pop.toFixed(1)}%
+                  POP: {analyzed.pop.toFixed(1)}%
               </Badge>
             )}
             <Button 

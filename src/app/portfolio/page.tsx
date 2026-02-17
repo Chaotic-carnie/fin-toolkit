@@ -1,16 +1,14 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+// 1. Move imports to the top
+import React, { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import dynamic from "next/dynamic";
+import nextDynamic from "next/dynamic";
 import type { Step, CallBackProps } from "react-joyride";
-
-// Forces Next.js to ignore this during the build phase
-const Joyride = dynamic(() => import("react-joyride"), { ssr: false });
-import { PortfolioHeader } from "@/features/portfolio/components/PortfolioHeader";
-import { usePortfolioStore } from "@/features/portfolio/store";
 import { Filter, Layers, Presentation, Download, Loader2 } from "lucide-react"; 
 import { Button } from "@/components/ui/button";
+import { PortfolioHeader } from "@/features/portfolio/components/PortfolioHeader";
+import { usePortfolioStore } from "@/features/portfolio/store";
 import { PortfolioGrid } from "@/features/portfolio/components/PortfolioGrid";
 import { PayoffChart } from "@/features/portfolio/components/PayoffChart";
 import { TradeSheet } from "@/features/portfolio/components/TradeSheet";
@@ -20,7 +18,11 @@ import { jsPDF } from "jspdf";
 import { toPng } from "html-to-image";
 import { toast } from "sonner";
 
-// --- Updated Tour Steps ---
+// Forces Next.js to ignore this during the build phase
+export const dynamic = "force-dynamic";
+
+const Joyride = nextDynamic(() => import("react-joyride"), { ssr: false });
+
 const TOUR_STEPS: Step[] = [
   {
     target: ".tour-add-trade-btn",
@@ -56,20 +58,21 @@ const TOUR_STEPS: Step[] = [
   }
 ];
 
-export default function PortfolioPage() {
+// --- 2. RENAME MAIN LOGIC COMPONENT (Internal Only) ---
+function PortfolioContent() {
   const hydrate = usePortfolioStore(state => state.refreshComputation);
   const trades = usePortfolioStore(state => state.trades);
   const clearPortfolio = usePortfolioStore(state => state.clearPortfolio);
   
-  // --- Joyride State ---
+  // Hooks are safe here because this component is wrapped below
   const searchParams = useSearchParams();
   const router = useRouter();
+  
   const [runTour, setRunTour] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [mounted, setMounted] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
-  // Ref to the main container
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -118,14 +121,18 @@ export default function PortfolioPage() {
 
   const handleJoyrideCallback = (data: CallBackProps) => {
     const { status, type, action, index } = data;
-    if ([STATUS.FINISHED, STATUS.SKIPPED].includes(status as any) || action === ACTIONS.CLOSE) {
+    // @ts-ignore - Joyride types are tricky sometimes
+    if (['finished', 'skipped'].includes(status) || action === 'close') {
       setRunTour(false);
       setStepIndex(0);
       return; 
     } 
-    if (type === EVENTS.STEP_AFTER) {
-      if (action === ACTIONS.NEXT) setStepIndex(index + 1);
-      else if (action === ACTIONS.PREV) setStepIndex(index - 1);
+    // @ts-ignore
+    if (type === 'step:after') {
+      // @ts-ignore
+      if (action === 'next') setStepIndex(index + 1);
+      // @ts-ignore
+      else if (action === 'prev') setStepIndex(index - 1);
     }
   };
 
@@ -135,8 +142,6 @@ export default function PortfolioPage() {
     setRunTour(true);
   };
 
-  // --- PDF Export Logic (Expanded View) ---
-  // --- PDF Export Logic (Expanded View) ---
   const handleExportPDF = async () => {
     const printArea = containerRef.current;
     if (!printArea) {
@@ -148,28 +153,24 @@ export default function PortfolioPage() {
       setIsExporting(true);
       toast.info("Generating PDF report...");
 
-      // 1. SELECT SCROLLABLE CONTAINERS
       const scrollableElements = printArea.querySelectorAll('.js-print-scroll') as NodeListOf<HTMLElement>;
       const originalStyles: { element: HTMLElement, height: string, overflow: string }[] = [];
 
-      // 2. EXPAND ELEMENTS (Save original state first)
       scrollableElements.forEach((el) => {
         originalStyles.push({
           element: el,
           height: el.style.height,
           overflow: el.style.overflow
         });
-        el.style.height = 'auto';      // Allow expansion
-        el.style.overflow = 'visible'; // Show overflow
+        el.style.height = 'auto';      
+        el.style.overflow = 'visible'; 
       });
 
-      // Also allow the main parent to grow
       const mainOriginalHeight = printArea.style.height;
       const mainOriginalOverflow = printArea.style.overflow;
       printArea.style.height = 'auto';
       printArea.style.overflow = 'visible';
 
-      // Small delay to allow DOM reflow
       await new Promise(resolve => setTimeout(resolve, 500));
 
       const dataUrl = await toPng(printArea, {
@@ -184,18 +185,14 @@ export default function PortfolioPage() {
         }
       });
 
-      // 3. RESTORE STYLES IMMEDIATELY (FIXED LOOP)
-      // We must iterate over 'originalStyles' to get the saved config
       originalStyles.forEach((item) => {
         item.element.style.height = item.height;
         item.element.style.overflow = item.overflow;
       });
       
-      // Restore main parent
       printArea.style.height = mainOriginalHeight;
       printArea.style.overflow = mainOriginalOverflow;
 
-      // 4. GENERATE PDF
       const pdf = new jsPDF("l", "mm", "a4");
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
@@ -235,7 +232,6 @@ export default function PortfolioPage() {
   if (!mounted) return null;
 
   return (
-    // Attached Ref here for screenshotting
     <div ref={containerRef} id="portfolio-export-area" className="h-screen w-full flex flex-col overflow-hidden bg-[#020617] text-white font-sans pt-28 lg:pt-2">
       
       <Joyride
@@ -265,7 +261,6 @@ export default function PortfolioPage() {
         }}
       />
 
-      {/* 2. WORKSPACE TITLE BAR */}
       <div className="shrink-0 px-4 lg:px-6 py-4 border-b border-white/5 bg-[#020617] flex flex-col md:flex-row md:justify-between items-start md:items-end gap-3 md:gap-2">
         <div>
           <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tighter text-white flex items-center gap-2 md:gap-3">
@@ -278,19 +273,19 @@ export default function PortfolioPage() {
         
         <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
            <Button 
-              variant="outline" 
-              size="sm" 
-              className="h-7 text-[9px] uppercase font-bold text-emerald-400 border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors"
-              onClick={handleExportPDF}
-              disabled={isExporting}
-              data-html2canvas-ignore="true"
+             variant="outline" 
+             size="sm" 
+             className="h-7 text-[9px] uppercase font-bold text-emerald-400 border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors"
+             onClick={handleExportPDF}
+             disabled={isExporting}
+             data-html2canvas-ignore="true"
            >
-              {isExporting ? <Loader2 className="w-3 h-3 mr-1.5 animate-spin" /> : <Download className="w-3 h-3 mr-1.5" />}
-              {isExporting ? "Generating..." : "Export Report"}
+             {isExporting ? <Loader2 className="w-3 h-3 mr-1.5 animate-spin" /> : <Download className="w-3 h-3 mr-1.5" />}
+             {isExporting ? "Generating..." : "Export Report"}
            </Button>
 
            <Button variant="outline" size="sm" className="h-7 text-[9px] uppercase font-bold text-blue-400 border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 transition-colors" onClick={startManualDemo}>
-              <Presentation className="w-3 h-3 mr-1.5" /> Demo
+             <Presentation className="w-3 h-3 mr-1.5" /> Demo
            </Button>
            <span className="text-[10px] font-mono text-slate-600 bg-white/5 px-2 py-1 rounded border border-white/5 hidden md:block">
              LIVE ENVIRONMENT
@@ -298,17 +293,14 @@ export default function PortfolioPage() {
         </div>
       </div>
 
-      {/* 3. GLOBAL NAV (Stats Banner) */}
       <div className="tour-stats-banner w-full overflow-x-auto dark-scrollbar border-b border-white/5 shrink-0 z-10 relative bg-[#020617]">
         <div className="min-w-[800px]">
           <PortfolioHeader />
         </div>
       </div>
 
-      {/* 4. MAIN WORKSPACE */}
       <div className="flex-1 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden w-full dark-scrollbar mb-20">
         
-        {/* LEFT PANE: Trade Grid (65%) */}
         <section className="tour-active-positions w-full lg:w-auto lg:flex-[0.65] border-b lg:border-b-0 lg:border-r border-white/5 flex flex-col min-w-0 shrink-0 bg-[#020617] relative z-0">
           <div className="h-12 shrink-0 border-b border-white/5 flex items-center justify-between px-4 lg:px-6 bg-slate-950/30">
             <h2 className="text-[10px] md:text-[11px] font-bold uppercase tracking-widest text-slate-400">
@@ -328,7 +320,6 @@ export default function PortfolioPage() {
             </div>
           </div>
           
-          {/* ADDED 'js-print-scroll' class here for auto-expansion logic */}
           <div className="flex-1 lg:overflow-y-auto dark-scrollbar bg-[#020617] relative js-print-scroll">
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,_#1e3a8a05_0%,_transparent_50%)] pointer-events-none" />
               <div className="relative z-10 p-4 lg:p-0 h-full">
@@ -337,7 +328,6 @@ export default function PortfolioPage() {
           </div>
         </section>
 
-        {/* RIGHT PANE: Analysis (35%) */}
         <section className="w-full lg:w-auto lg:flex-[0.35] flex flex-col min-w-0 shrink-0 bg-[#020617]">
             <div className="h-12 shrink-0 border-b border-white/5 flex items-center px-4 lg:px-6 bg-slate-950/30">
                 <h2 className="text-[10px] md:text-[11px] font-bold uppercase tracking-widest text-slate-400">
@@ -345,7 +335,6 @@ export default function PortfolioPage() {
                 </h2>
             </div>
 
-            {/* ADDED 'js-print-scroll' class here for auto-expansion logic */}
             <div className="flex-1 lg:overflow-y-auto dark-scrollbar p-4 lg:p-6 space-y-6 pb-24 lg:pb-6 relative z-0 js-print-scroll">
                 
                 <SimulationControls />
@@ -374,8 +363,16 @@ export default function PortfolioPage() {
 
             </div>
         </section>
-
       </div>
     </div>
+  );
+}
+
+// --- 3. THE NEW WRAPPER (This is what Next.js sees) ---
+export default function PortfolioPage() {
+  return (
+    <Suspense fallback={<div className="flex h-screen w-full items-center justify-center bg-[#020617] text-slate-500 font-mono text-sm">LOADING PORTFOLIO ENGINE...</div>}>
+      <PortfolioContent />
+    </Suspense>
   );
 }

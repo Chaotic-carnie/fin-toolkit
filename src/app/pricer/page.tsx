@@ -1,18 +1,21 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react"; // <--- Added Suspense
 import { useSearchParams, useRouter } from "next/navigation";
-import dynamic from "next/dynamic";
+import nextDynamic from "next/dynamic"; 
 import type { Step, CallBackProps } from "react-joyride";
 
 // Forces Next.js to ignore this during the build phase
-const Joyride = dynamic(() => import("react-joyride"), { ssr: false });
+const Joyride = nextDynamic(() => import("react-joyride"), { ssr: false });
+
 import { Info, Loader2, Activity, Tag, Presentation, ChevronRight, Binary, Cpu, Download } from "lucide-react";
 import { PRICER_CATALOG } from "@/features/pricing/config";
 import type { computeResult, PricingResult } from "@/features/pricing/engine";
 import { jsPDF } from "jspdf";
-import { toJpeg } from "html-to-image"; // Changed from toPng
+import { toJpeg } from "html-to-image"; 
 import { toast } from "sonner"; 
+
+export const dynamic = "force-dynamic";
 
 // --- Types ---
 interface PricingRequest {
@@ -89,7 +92,8 @@ const TOUR_STEPS: Step[] = [
   }
 ];
 
-export default function PricerPage() {
+// --- MAIN LOGIC (Renamed to PricerContent) ---
+function PricerContent() {
   const [instKey, setInstKey] = useState(PRICER_CATALOG.instruments[0].key);
   const [methodKey, setMethodKey] = useState(PRICER_CATALOG.instruments[0].methods[0].key);
   const [quantity, setQuantity] = useState(1);
@@ -151,14 +155,18 @@ export default function PricerPage() {
 
   const handleJoyrideCallback = (data: CallBackProps) => {
     const { status, type, action, index } = data;
-    if ([STATUS.FINISHED, STATUS.SKIPPED].includes(status as any) || action === ACTIONS.CLOSE) {
+    // @ts-ignore
+    if (['finished', 'skipped'].includes(status) || action === 'close') {
       setRunTour(false);
       setStepIndex(0);
       return; 
     } 
-    if (type === EVENTS.STEP_AFTER) {
-      if (action === ACTIONS.NEXT) setStepIndex(index + 1);
-      else if (action === ACTIONS.PREV) setStepIndex(index - 1);
+    // @ts-ignore
+    if (type === 'step:after') {
+      // @ts-ignore
+      if (action === 'next') setStepIndex(index + 1);
+      // @ts-ignore
+      else if (action === 'prev') setStepIndex(index - 1);
     }
   };
 
@@ -177,11 +185,11 @@ export default function PricerPage() {
   }, [instKey]);
 
   useEffect(() => {
-     setInstrumentParams(prev => {
-       const next = { ...prev };
-       currentMethod.extra_params.forEach(p => next[p.key] = p.default);
-       return next;
-     });
+      setInstrumentParams(prev => {
+        const next = { ...prev };
+        currentMethod.extra_params.forEach(p => next[p.key] = p.default);
+        return next;
+      });
   }, [methodKey]);
 
   // --- PDF Export Logic (Optimized JPEG) ---
@@ -521,77 +529,86 @@ export default function PricerPage() {
       {/* ================= RIGHT COLUMN: OUTPUTS ================= */}
       <section className="w-full lg:w-[40%] bg-white/5 backdrop-blur-md border border-white/10 rounded-3xl p-4 md:p-6 flex flex-col relative shrink-0 min-h-fit transition-all mb-20 lg:pb-10">
 
-         <div className="flex justify-between items-start mb-4 md:mb-6 pb-4 border-b border-white/5 min-h-[50px] shrink-0">
-           {runMetadata ? (
-             <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-2">
-                   <Tag className="w-3 h-3 text-blue-500" />
-                   <span className="text-[10px] md:text-xs font-bold text-white tracking-wide">{runMetadata.instrumentLabel}</span>
-                </div>
-                <span className="text-[9px] md:text-[10px] font-mono text-slate-400 uppercase tracking-wider pl-5">{runMetadata.methodLabel}</span>
-             </div>
-           ) : (
-             <div className="flex items-center gap-2 h-full">
-               <div className="w-2 h-2 rounded-full bg-slate-600" />
-               <span className="text-[9px] md:text-[10px] font-mono text-slate-500 uppercase tracking-widest">NO RUN DATA</span>
-             </div>
-           )}
+          <div className="flex justify-between items-start mb-4 md:mb-6 pb-4 border-b border-white/5 min-h-[50px] shrink-0">
+            {runMetadata ? (
+              <div className="flex flex-col gap-1">
+                 <div className="flex items-center gap-2">
+                    <Tag className="w-3 h-3 text-blue-500" />
+                    <span className="text-[10px] md:text-xs font-bold text-white tracking-wide">{runMetadata.instrumentLabel}</span>
+                 </div>
+                 <span className="text-[9px] md:text-[10px] font-mono text-slate-400 uppercase tracking-wider pl-5">{runMetadata.methodLabel}</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 h-full">
+                <div className="w-2 h-2 rounded-full bg-slate-600" />
+                <span className="text-[9px] md:text-[10px] font-mono text-slate-500 uppercase tracking-widest">NO RUN DATA</span>
+              </div>
+            )}
 
-           <div className="text-right">
-             <div className="flex items-center justify-end gap-2 text-[9px] md:text-[10px] font-mono text-slate-500 mb-1">
-               {isComputing && <Loader2 className="w-3 h-3 animate-spin" />}
-               <span>{isComputing ? "COMPUTING" : "STATUS: OK"}</span>
-             </div>
-             {calcTime !== null && !isComputing && (
-                <div className="flex items-center gap-1 text-[9px] md:text-[10px] font-mono text-emerald-500 justify-end">
-                  <Activity className="w-3 h-3" />
-                  <span>{calcTime}ms</span>
-                </div>
-             )}
-           </div>
-         </div>
-
-         <div className="tour-theoretical-price bg-[#0B1121] border border-white/10 rounded-xl p-4 md:p-5 mb-6 shadow-2xl relative overflow-hidden shrink-0 z-10">
-            <div className="absolute top-0 right-0 w-24 h-24 md:w-32 md:h-32 bg-blue-500/10 rounded-full blur-2xl -mr-10 -mt-10" />
-            
-            <div className="flex flex-col md:flex-row md:justify-between md:items-end relative z-10 gap-4 md:gap-0">
-               <div>
-                  <p className="text-[9px] md:text-[10px] uppercase font-bold text-slate-500 mb-1">Theoretical Price</p>
-                  {isComputing ? (
-                    <div className="h-8 md:h-10 w-24 md:w-32 bg-white/10 animate-pulse rounded" />
-                  ) : (
-                    <div className="text-3xl md:text-4xl lg:text-5xl font-black font-mono tracking-tighter text-white">
-                      {typeof result?.price === 'number' ? result.price.toFixed(4) : "---"}
-                    </div>
-                  )}
-               </div>
-               
-               <div className="md:text-right">
-                 <p className="text-[9px] md:text-[10px] uppercase font-bold text-slate-500 mb-1">Total Position ({runQuantity}x)</p>
-                  {isComputing ? (
-                    <div className="h-5 md:h-6 w-20 md:w-24 bg-white/10 animate-pulse rounded md:ml-auto" />
-                  ) : (
-                    <div className="text-lg md:text-xl font-bold font-mono text-blue-400">
-                        {typeof result?.price === 'number' ? (result.price * runQuantity).toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : "---"}
-                    </div>
-                  )}
-               </div>
+            <div className="text-right">
+              <div className="flex items-center justify-end gap-2 text-[9px] md:text-[10px] font-mono text-slate-500 mb-1">
+                {isComputing && <Loader2 className="w-3 h-3 animate-spin" />}
+                <span>{isComputing ? "COMPUTING" : "STATUS: OK"}</span>
+              </div>
+              {calcTime !== null && !isComputing && (
+                 <div className="flex items-center gap-1 text-[9px] md:text-[10px] font-mono text-emerald-500 justify-end">
+                   <Activity className="w-3 h-3" />
+                   <span>{calcTime}ms</span>
+                 </div>
+              )}
             </div>
-         </div>
+          </div>
 
-         <div className="tour-greeks flex-1 lg:overflow-y-auto no-scrollbar bg-slate-900/20 border border-white/5 rounded-xl p-2 space-y-1 relative z-10">
-            <DataRow label="Delta" value={result?.delta ?? null} loading={isComputing} colorFn={getGreekColor} suffix="Δ" />
-            <DataRow label="Gamma" value={result?.gamma ?? null} loading={isComputing} colorFn={getGreekColor} suffix="Γ" />
-            <DataRow label="Vega" value={result?.vega ?? null} loading={isComputing} colorFn={getGreekColor} suffix="ν" />
-            <DataRow label="Theta" value={result?.theta ?? null} loading={isComputing} colorFn={getGreekColor} suffix="Θ" />
-            <DataRow label="Rho" value={result?.rho ?? null} loading={isComputing} colorFn={getGreekColor} suffix="ρ" />
-         </div>
-         
-         <div className="mt-4 pt-4 border-t border-white/5 text-[9px] md:text-[10px] text-slate-600 flex justify-between shrink-0 m-10">
-           <span>* Vega (1% vol change) | Theta (1-day decay)</span>
-         </div>
+          <div className="tour-theoretical-price bg-[#0B1121] border border-white/10 rounded-xl p-4 md:p-5 mb-6 shadow-2xl relative overflow-hidden shrink-0 z-10">
+             <div className="absolute top-0 right-0 w-24 h-24 md:w-32 md:h-32 bg-blue-500/10 rounded-full blur-2xl -mr-10 -mt-10" />
+             
+             <div className="flex flex-col md:flex-row md:justify-between md:items-end relative z-10 gap-4 md:gap-0">
+                <div>
+                   <p className="text-[9px] md:text-[10px] uppercase font-bold text-slate-500 mb-1">Theoretical Price</p>
+                   {isComputing ? (
+                     <div className="h-8 md:h-10 w-24 md:w-32 bg-white/10 animate-pulse rounded" />
+                   ) : (
+                     <div className="text-3xl md:text-4xl lg:text-5xl font-black font-mono tracking-tighter text-white">
+                       {typeof result?.price === 'number' ? result.price.toFixed(4) : "---"}
+                     </div>
+                   )}
+                </div>
+                
+                <div className="md:text-right">
+                  <p className="text-[9px] md:text-[10px] uppercase font-bold text-slate-500 mb-1">Total Position ({runQuantity}x)</p>
+                   {isComputing ? (
+                     <div className="h-5 md:h-6 w-20 md:w-24 bg-white/10 animate-pulse rounded md:ml-auto" />
+                   ) : (
+                     <div className="text-lg md:text-xl font-bold font-mono text-blue-400">
+                         {typeof result?.price === 'number' ? (result.price * runQuantity).toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : "---"}
+                     </div>
+                   )}
+                </div>
+             </div>
+          </div>
+
+          <div className="tour-greeks flex-1 lg:overflow-y-auto no-scrollbar bg-slate-900/20 border border-white/5 rounded-xl p-2 space-y-1 relative z-10">
+             <DataRow label="Delta" value={result?.delta ?? null} loading={isComputing} colorFn={getGreekColor} suffix="Δ" />
+             <DataRow label="Gamma" value={result?.gamma ?? null} loading={isComputing} colorFn={getGreekColor} suffix="Γ" />
+             <DataRow label="Vega" value={result?.vega ?? null} loading={isComputing} colorFn={getGreekColor} suffix="ν" />
+             <DataRow label="Theta" value={result?.theta ?? null} loading={isComputing} colorFn={getGreekColor} suffix="Θ" />
+             <DataRow label="Rho" value={result?.rho ?? null} loading={isComputing} colorFn={getGreekColor} suffix="ρ" />
+          </div>
+          
+          <div className="mt-4 pt-4 border-t border-white/5 text-[9px] md:text-[10px] text-slate-600 flex justify-between shrink-0 m-10">
+            <span>* Vega (1% vol change) | Theta (1-day decay)</span>
+          </div>
 
       </section>
     </main>
+  );
+}
+
+// --- 3. NEW WRAPPER COMPONENT ---
+export default function PricerPage() {
+  return (
+    <Suspense fallback={<div className="flex h-screen w-full items-center justify-center bg-[#020617] text-slate-500 font-mono text-sm">LOADING PRICER ENGINE...</div>}>
+      <PricerContent />
+    </Suspense>
   );
 }
