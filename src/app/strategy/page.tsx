@@ -14,11 +14,7 @@ import { Settings2, Activity, TrendingUp, Target, ListChecks, BarChart3, Info, L
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ReferenceLine, ResponsiveContainer } from "recharts";
 import { usePortfolioStore } from "~/features/portfolio/store"; 
 import { useSearchParams, useRouter } from "next/navigation";
-import nextDynamic from "next/dynamic"; // <--- 2. Rename this import
-import type { Step, CallBackProps } from "react-joyride";
-
-// Forces Next.js to ignore this during the build phase
-const Joyride = nextDynamic(() => import("react-joyride"), { ssr: false });
+import { TourProvider, useTour } from '@reactour/tour';
 import { Presentation } from "lucide-react";
 import { Download, Loader2 } from "lucide-react";
 import { jsPDF } from "jspdf";
@@ -29,45 +25,43 @@ import { toast } from "sonner";
 export const dynamic = "force-dynamic";
 
 // --- Tour Steps ---
-const TOUR_STEPS: Step[] = [
+const TOUR_STEPS = [
   {
-    target: ".tour-market-inputs",
-    content: "Start by defining the current market environment. Set the spot price, implied volatility, and risk-free rate.",
-    title: "1. Market Environment",
-    disableBeacon: true,
-    placement: "bottom", 
+    selector: ".tour-market-inputs",
+    content: () => (<div><h3 className="font-bold text-sm text-blue-400 mb-1 uppercase tracking-wider">1. Market Environment</h3><p className="text-xs text-slate-300 leading-relaxed">Start by defining the current market environment. Set the spot price, implied volatility, and risk-free rate.</p></div>),
   },
   {
-    target: ".tour-view-settings",
-    content: "Define your market thesis. Are you bullish, bearish, or neutral? Enter your expected move percentage and your investment horizon.",
-    title: "2. Your View",
-    placement: "bottom",
+    selector: ".tour-view-settings",
+    content: () => (<div><h3 className="font-bold text-sm text-blue-400 mb-1 uppercase tracking-wider">2. Your View</h3><p className="text-xs text-slate-300 leading-relaxed">Define your market thesis. Enter your expected move percentage and your investment horizon.</p></div>),
   },
   {
-    target: ".tour-constraints",
-    content: "Set your risk parameters here. Do you want strictly defined-risk trades? What's your max acceptable loss?",
-    title: "3. Constraints",
-    placement: "top", 
+    selector: ".tour-constraints",
+    content: () => (<div><h3 className="font-bold text-sm text-blue-400 mb-1 uppercase tracking-wider">3. Constraints</h3><p className="text-xs text-slate-300 leading-relaxed">Set your risk parameters here. Do you want strictly defined-risk trades? What's your max acceptable loss?</p></div>),
   },
   {
-    target: ".tour-compute-button",
-    content: "Click here to generate strategies! The engine will scan thousands of combinations to find structures that perfectly match your view.",
-    title: "4. Run Engine",
-    spotlightClicks: true, 
-    hideFooter: true,      
-    placement: "top",      
+    selector: ".tour-compute-button",
+    content: () => (<div><h3 className="font-bold text-sm text-blue-400 mb-1 uppercase tracking-wider">4. Run Engine</h3><p className="text-xs text-slate-300 leading-relaxed">Click here to generate strategies! The engine will scan thousands of combinations.</p></div>),
   },
   {
-    target: ".tour-candidate-results",
-    content: "These are your optimal candidate structures! Select one, then click the 'Scenarios' tab to see its payoff profile and risk matrix.",
-    title: "5. Analyze Candidates",
-    placement: "top",
+    selector: ".tour-scenarios-tab",
+    content: () => (
+      <div>
+        <h3 className="font-bold text-sm text-blue-400 mb-1 uppercase tracking-wider">5. Select & Deep Dive</h3>
+        <p className="text-xs text-slate-300 leading-relaxed">The Top 5 candidates are generated with a fit score! You may choose 1, then click the 'Scenarios' tab to dive into the mathematical breakdown.</p>
+      </div>
+    ),
+  },
+  {
+    selector: ".tour-scenario-dashboard",
+    content: () => (<div><h3 className="font-bold text-sm text-blue-400 mb-1 uppercase tracking-wider">6. Automated Analysis</h3><p className="text-xs text-slate-300 leading-relaxed">Watch as the engine models your Payoff curve, computes Greeks, and stress-tests your position. Enjoy the scroll!</p></div>),
   }
 ];
 
 // --- 4. MAIN LOGIC (Renamed to StrategyContent) ---
 function StrategyContent() {
   // 1. Inputs
+  const { setIsOpen, setCurrentStep, isOpen, currentStep } = useTour();
+  const [activeTab, setActiveTab] = useState("candidates");
   const [market, setMarket] = useState({ spot: 100, vol: 0.20, rate: 0.03, dividend: 0.0, skew: 0.15 });
   const [view, setView] = useState({ 
     direction: "bullish" as "bullish"|"bearish"|"neutral", moveMode: "pct" as "pct"|"target",
@@ -93,8 +87,6 @@ function StrategyContent() {
   // --- Joyride State ---
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [runTour, setRunTour] = useState(false);
-  const [stepIndex, setStepIndex] = useState(0);
 
   // Restore state from previous session
   useEffect(() => {
@@ -117,8 +109,8 @@ function StrategyContent() {
 
     if (searchParams?.get("demo") === "true") {
       setTimeout(() => {
-        setStepIndex(0);
-        setRunTour(true);
+        setCurrentStep(0);
+        setIsOpen(true);
       }, 500);
       const newUrl = window.location.pathname;
       window.history.replaceState({}, '', newUrl);
@@ -134,31 +126,44 @@ function StrategyContent() {
   }, [market, view, constraints, gen, hasRun, candidates, selIdx, isHydrated]);
 
   // NEW SCROLL FIX
+  // --- MAGIC AUTO-SCROLL & ADVANCE LOGIC ---
   useEffect(() => {
-    if (runTour) {
-      const targetSelector = TOUR_STEPS[stepIndex]?.target as string;
-      if (targetSelector) {
-        setTimeout(() => {
-          const element = document.querySelector(targetSelector) as HTMLElement;
-          const sidebarScroll = document.getElementById('sidebar-scroll');
-          const mainScroll = document.getElementById('main-scroll');
-          
-          if (element) {
-            const container = (sidebarScroll && sidebarScroll.scrollHeight > sidebarScroll.clientHeight) 
-                              ? sidebarScroll 
-                              : mainScroll;
-            
-            if (container) {
-              const containerRect = container.getBoundingClientRect();
-              const elementRect = element.getBoundingClientRect();
-              const scrollTop = container.scrollTop + (elementRect.top - containerRect.top) - 80;
-              container.scrollTo({ top: Math.max(0, scrollTop), behavior: 'smooth' });
-            }
-          }
-        }, 100); 
-      }
+    if (!isOpen) return;
+
+    // 1. Force the tour to advance to Step 6 ONLY when the user physically clicks the Scenarios tab
+    if (currentStep === 4 && activeTab === "scenarios") {
+      setTimeout(() => setCurrentStep(5), 400);
     }
-  }, [stepIndex, runTour]);
+
+    // 2. Cinematic Auto-Scroll (Using requestAnimationFrame for buttery smoothness)
+    if (currentStep === 5 && activeTab === "scenarios") {
+      
+      // Wait 1.5 seconds for the charts to physically render in the DOM before calculating height
+      const startDelay = setTimeout(() => {
+        const scrollContainer = document.getElementById("scenario-scroll-container");
+        if (!scrollContainer) return;
+
+        let animationFrameId: number;
+        
+        const autoScroll = () => {
+          const maxScroll = scrollContainer.scrollHeight - scrollContainer.clientHeight;
+          
+          // If we haven't hit the bottom, smoothly add 1.5px of scroll per frame
+          if (scrollContainer.scrollTop < maxScroll && isOpen) {
+            scrollContainer.scrollTop += 1.5; 
+            animationFrameId = requestAnimationFrame(autoScroll);
+          }
+        };
+
+        // Ignite the scroll engine
+        animationFrameId = requestAnimationFrame(autoScroll);
+
+        return () => cancelAnimationFrame(animationFrameId);
+      }, 1500); 
+      
+      return () => clearTimeout(startDelay);
+    }
+  }, [isOpen, currentStep, activeTab, setCurrentStep]);
 
   // Safe Parsing for Engine
   const parsedMarket = { spot: Number(market.spot)||0, vol: Number(market.vol)||0, rate: Number(market.rate)||0, dividend: Number(market.dividend)||0, skew: Number(market.skew)||0 };
@@ -175,26 +180,10 @@ function StrategyContent() {
 
   const active = candidates[selIdx];
 
-  const handleJoyrideCallback = (data: CallBackProps) => {
-    const { status, type, action, index } = data;
-    // @ts-ignore
-    if (['finished', 'skipped'].includes(status) || action === 'close') {
-      setRunTour(false);
-      setStepIndex(0);
-      return; 
-    } 
-    // @ts-ignore
-    if (type === 'step:after') {
-      // @ts-ignore
-      if (action === 'next') setStepIndex(index + 1);
-      // @ts-ignore
-      else if (action === 'prev') setStepIndex(index - 1);
-    }
-  };
-
   const startManualDemo = () => {
-    setStepIndex(0);
-    setRunTour(true);
+    setActiveTab("candidates"); // STRICT RESET: Ensure we always start on the first tab
+    setCurrentStep(0);
+    setIsOpen(true);
   };
 
   const handleCompute = () => {
@@ -215,8 +204,8 @@ function StrategyContent() {
       worker.terminate(); 
 
       // ADVANCE TOUR AFTER RUN COMPLETES
-      if (runTour && stepIndex === 3) {
-        setTimeout(() => setStepIndex(4), 400); 
+      if (isOpen && currentStep === 3) {
+        setTimeout(() => setCurrentStep(4), 400); 
       }
     };
 
@@ -321,34 +310,7 @@ function StrategyContent() {
     if (!isHydrated) return null;
 
   return (
-<main className="flex flex-col h-screen overflow-hidden pt-28 lg:pt-2 bg-[#020617] text-white font-sans">      
-      {/* --- JOYRIDE COMPONENT --- */}
-      <Joyride
-        callback={handleJoyrideCallback}
-        continuous
-        stepIndex={stepIndex} 
-        run={runTour}
-        disableScrolling={true} 
-        showProgress
-        showSkipButton
-        hideCloseButton={true}
-        steps={TOUR_STEPS}
-        styles={{
-          options: {
-            zIndex: 10000,
-            primaryColor: '#2563eb', 
-            backgroundColor: '#0f172a', 
-            textColor: '#f8fafc', 
-            arrowColor: '#0f172a',
-            overlayColor: 'rgba(0, 0, 0, 0.75)',
-            spotlightPadding: 8, 
-          },
-          tooltipContainer: { textAlign: 'left' },
-          buttonNext: { backgroundColor: '#2563eb', borderRadius: '6px', padding: '8px 16px', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase' },
-          buttonBack: { color: '#94a3b8', marginRight: '10px', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase' },
-          buttonSkip: { color: '#ef4444', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase' }
-        }}
-      />
+<main className="flex flex-col w-full h-[calc(100dvh-64px)] overflow-hidden bg-[#020617] text-white font-sans">
 
       <div id="main-scroll" className="flex-1 flex flex-col xl:flex-row dark-scrollbar overflow-y-auto xl:overflow-hidden w-full">
         
@@ -500,14 +462,14 @@ function StrategyContent() {
             </div>
           </div>
 
-          <Tabs defaultValue="candidates" className="flex-1 flex flex-col min-h-0">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
             
             <div className="shrink-0 px-4 md:px-8 pt-4 border-b border-slate-800/60 bg-[#020617] overflow-x-auto dark-scrollbar">
               <TabsList className="bg-transparent h-10 gap-6 md:gap-8 px-0 justify-start w-max">
                 <TabsTrigger value="candidates" className="uppercase text-[11px] font-bold tracking-widest !bg-transparent !shadow-none !border-none !outline-none focus-visible:!ring-0 focus-visible:!ring-offset-0 data-[state=active]:!bg-transparent data-[state=active]:!text-white rounded-none pb-3 text-slate-500 hover:!text-slate-300 hover:!bg-transparent transition-colors">
                   <ListChecks className="w-3.5 h-3.5 mr-2" /> Candidates
                 </TabsTrigger>
-                <TabsTrigger value="scenarios" disabled={!hasRun || candidates.length === 0} className="uppercase text-[11px] font-bold tracking-widest !bg-transparent !shadow-none !border-none !outline-none focus-visible:!ring-0 focus-visible:!ring-offset-0 data-[state=active]:!bg-transparent data-[state=active]:!text-white rounded-none pb-3 text-slate-500 hover:!text-slate-300 hover:!bg-transparent transition-colors disabled:opacity-50 disabled:hover:!text-slate-500">
+                <TabsTrigger value="scenarios" disabled={!hasRun || candidates.length === 0} className="tour-scenarios-tab uppercase text-[11px] font-bold tracking-widest !bg-transparent !shadow-none !border-none !outline-none focus-visible:!ring-0 focus-visible:!ring-offset-0 data-[state=active]:!bg-transparent data-[state=active]:!text-white rounded-none pb-3 text-slate-500 hover:!text-slate-300 hover:!bg-transparent transition-colors disabled:opacity-50 disabled:hover:!text-slate-500">
                   <BarChart3 className="w-3.5 h-3.5 mr-2" /> Scenarios
                 </TabsTrigger>
               </TabsList>
@@ -537,7 +499,7 @@ function StrategyContent() {
               </div>
             </TabsContent>
 
-            <TabsContent value="scenarios" className="flex-1 xl:overflow-y-auto p-4 md:p-8 dark-scrollbar mt-0 js-print-scroll">
+            <TabsContent id="scenario-scroll-container" value="scenarios" className="tour-scenario-dashboard flex-1 xl:overflow-y-auto p-4 md:p-8 dark-scrollbar mt-0 js-print-scroll">
               {active ? (
                 <ScenarioAnalysisDashboard 
                   cand={active} 
@@ -658,7 +620,43 @@ function StrategyContent() {
 export default function StrategyPage() {
   return (
     <Suspense fallback={<div className="flex h-screen w-full items-center justify-center bg-[#020617] text-slate-500 font-mono text-sm">LOADING STRATEGY ENGINE...</div>}>
-      <StrategyContent />
+      <TourProvider 
+        steps={TOUR_STEPS}
+        onClickMask={() => {}} 
+        styles={{
+          popover: (base) => ({
+            ...base,
+            backgroundColor: '#0f172a',
+            color: '#f8fafc',
+            borderRadius: '16px',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8)',
+            padding: '24px'
+          }),
+          maskArea: (base) => ({ ...base, rx: 8 }),
+          badge: (base) => ({ ...base, backgroundColor: '#3b82f6', color: '#ffffff', fontWeight: 'bold' }),
+          close: (base) => ({ ...base, color: '#64748b', right: 16, top: 16 }),
+          dot: (base, state) => ({
+            ...base,
+            backgroundColor: state?.current ? '#3b82f6' : '#334155',
+          }),
+          buttonNext: (base, state) => ({ 
+            ...base, 
+            backgroundColor: '#2563eb', 
+            borderRadius: '6px', 
+            padding: '8px 16px', 
+            fontSize: '12px', 
+            fontWeight: 'bold', 
+            textTransform: 'uppercase',
+            // Hide the Next button on Step 5 (index 4) so they MUST click the Scenarios tab
+            display: state?.current === 4 ? 'none' : 'block' 
+          }),
+          buttonBack: { color: '#94a3b8', marginRight: '10px', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase' },
+          buttonSkip: { color: '#ef4444', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase' }
+        }}
+      >
+        <StrategyContent />
+      </TourProvider>
     </Suspense>
   );
 }

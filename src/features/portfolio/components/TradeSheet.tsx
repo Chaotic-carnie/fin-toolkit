@@ -110,14 +110,18 @@ export function TradeSheet() {
         </Button>
       </SheetTrigger>
       
-      <SheetContent className="bg-[#020617] border-l border-white/10 text-white w-[500px] p-0 flex flex-col">
-        <div className="p-6 border-b border-white/10 bg-slate-950/50">
+      {/* THE FIX: w-full on mobile, fixed width on desktop, strictly locked to 100dvh */}
+      <SheetContent className="bg-[#020617] border-l-0 sm:border-l border-white/10 text-white w-full sm:w-[500px] sm:max-w-[500px] h-[100dvh] p-0 flex flex-col">
+        
+        {/* THE FIX: shrink-0 keeps the header from being squished */}
+        <div className="p-4 sm:p-6 border-b border-white/10 bg-slate-950/50 shrink-0">
             <SheetHeader>
                 <SheetTitle className="text-slate-200">Structurer</SheetTitle>
             </SheetHeader>
         </div>
         
-        <div className="flex-1 overflow-y-auto p-6 space-y-6 dark-scrollbar">
+        {/* THE FIX: min-h-0 guarantees flexbox allows it to shrink and scroll perfectly */}
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-6 dark-scrollbar">
           <Tabs value={mode} onValueChange={setMode} className="w-full">
             <TabsList className="w-full bg-slate-900 border border-slate-800">
                 <TabsTrigger value="single" className="flex-1 text-xs data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=inactive]:text-slate-400">Single</TabsTrigger>
@@ -139,14 +143,12 @@ export function TradeSheet() {
           )}
 
           <div className="space-y-4">
-             {/* 1. INSTRUMENT & OPTION TYPE ROW */}
              {mode === "single" && (
                  <div className="grid grid-cols-2 gap-4">
                      <div className="space-y-1.5">
                         <Label className="text-[10px] text-slate-400">Instrument</Label>
                         <Select value={config.instrument} onValueChange={(v) => setConfig({...config, instrument: v})}>
                             <SelectTrigger className="bg-slate-900/50 border-slate-800 h-9 text-sm"><SelectValue /></SelectTrigger>
-                            {/* FIX: Explicit colors for dropdown content */}
                             <SelectContent className="bg-slate-900 border-slate-700 text-slate-200">
                                 <SelectItem value="vanilla" className="focus:bg-slate-800 focus:text-white cursor-pointer">Vanilla</SelectItem>
                                 <SelectItem value="digital" className="focus:bg-slate-800 focus:text-white cursor-pointer">Digital (Binary)</SelectItem>
@@ -154,7 +156,6 @@ export function TradeSheet() {
                             </SelectContent>
                         </Select>
                      </div>
-                     {/* FIX: Restored Option Type Selector */}
                      <div className="space-y-1.5">
                         <Label className="text-[10px] text-slate-400">Option Type</Label>
                         <Select value={config.type} onValueChange={(v) => setConfig({...config, type: v})}>
@@ -204,7 +205,6 @@ export function TradeSheet() {
                  <div className="space-y-1.5"><Label className="text-[10px] text-slate-400">Risk Free Rate</Label><Input type="number" className="bg-slate-900/50 border-slate-800" value={config.rate} onChange={e => setConfig({...config, rate: Number(e.target.value)})} /></div>
                  <div className="space-y-1.5"><Label className="text-[10px] text-slate-400">Div Yield (q)</Label><Input type="number" className="bg-slate-900/50 border-slate-800" value={config.dividend} onChange={e => setConfig({...config, dividend: Number(e.target.value)})} /></div>
                  
-                 {/* Only show Strike inputs if NOT Condor (condor handles its own) */}
                  {mode !== "condor" && (
                      <>
                         <div className="space-y-1.5"><Label className="text-[10px] text-slate-400">{mode === 'strangle' ? 'Call Strike' : 'Strike'}</Label><Input type="number" className="bg-slate-900/50 border-slate-800" value={config.strike} onChange={e => setConfig({...config, strike: Number(e.target.value)})} /></div>
@@ -226,7 +226,8 @@ export function TradeSheet() {
           </div>
         </div>
 
-        <div className="p-6 border-t border-white/10 bg-slate-950/50">
+        {/* THE FIX: shrink-0 and pb-8 ensures it stays pinned to the bottom of the screen */}
+        <div className="p-4 sm:p-6 pb-8 sm:pb-6 border-t border-white/10 bg-slate-950/50 shrink-0">
             <Button onClick={handleSubmit} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium">Add {mode === "single" ? "Leg" : "Strategy"}</Button>
         </div>
       </SheetContent>

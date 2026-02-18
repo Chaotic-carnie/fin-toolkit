@@ -36,7 +36,7 @@ export function PortfolioHeader() {
   const isProfit = totalValue >= 0;
 
   return (
-    <header className="h-20 shrink-0 border-b border-white/10 bg-[#020617]/80 backdrop-blur-md sticky top-0 z-50 flex items-center justify-between px-6 shadow-2xl">
+    <header className="flex flex-wrap items-center justify-start lg:justify-between gap-x-4 gap-y-4 w-full">
       
       {/* LEFT: Net Liquidation Value */}
       <div className="flex flex-col">

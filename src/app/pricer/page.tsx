@@ -1,16 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react"; // <--- Added Suspense
+import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import nextDynamic from "next/dynamic"; 
-import type { Step, CallBackProps } from "react-joyride";
-
-// Forces Next.js to ignore this during the build phase
-const Joyride = nextDynamic(() => import("react-joyride"), { ssr: false });
+import { TourProvider, useTour } from '@reactour/tour';
 
 import { Info, Loader2, Activity, Tag, Presentation, ChevronRight, Binary, Cpu, Download } from "lucide-react";
 import { PRICER_CATALOG } from "@/features/pricing/config";
-import type { computeResult, PricingResult } from "@/features/pricing/engine";
+import { computeResult, type PricingResult } from "@/features/pricing/engine";
 import { jsPDF } from "jspdf";
 import { toJpeg } from "html-to-image"; 
 import { toast } from "sonner"; 
@@ -30,20 +26,14 @@ interface PricingResponse extends PricingResult {
 }
 
 // --- Sub-components ---
-
-const LoadingValue = () => (
-  <div className="h-5 w-24 bg-white/10 animate-pulse rounded" />
-);
+const LoadingValue = () => <div className="h-5 w-24 bg-white/10 animate-pulse rounded" />;
 
 const DataRow = ({ label, value, loading, colorFn, suffix = "" }: { label: string, value: number | null | undefined, loading: boolean, colorFn?: (v: number) => string, suffix?: string }) => {
   const displayColor = (typeof value === 'number' && colorFn) ? colorFn(value) : "text-slate-200";
-  
   return (
     <div className="flex justify-between items-center py-3 px-3 border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors rounded-lg group">
       <span className="text-xs uppercase font-bold text-slate-500 group-hover:text-slate-400 transition-colors">{label}</span>
-      {loading ? (
-        <LoadingValue />
-      ) : (
+      {loading ? <LoadingValue /> : (
         <span className={`font-mono font-medium tracking-tight ${displayColor}`}>
           {typeof value === 'number' ? value.toFixed(6) : "-"}
           {suffix && <span className="text-slate-600 ml-1 text-[10px]">{suffix}</span>}
@@ -53,51 +43,74 @@ const DataRow = ({ label, value, loading, colorFn, suffix = "" }: { label: strin
   );
 };
 
-// --- Tour Steps ---
-const TOUR_STEPS: Step[] = [
+// --- REACTOUR STEPS ---
+const TOUR_STEPS = [
   {
-    target: ".tour-instrument-select",
-    content: "Select your financial instrument here. The engine supports Vanilla Options, Forwards, and Exotics like Barrier and Asian options.",
-    title: "1. Select Instrument",
-    disableBeacon: true,
+    selector: ".tour-instrument-select",
+    content: () => (
+      <div>
+        <h3 className="font-bold text-sm text-blue-400 mb-1 uppercase tracking-wider">1. Select Instrument</h3>
+        <p className="text-xs text-slate-300 leading-relaxed">Try opening the dropdown. You can switch between standard Vanilla Options, Forwards, or explore path-dependent Exotics like Barrier and Asian options.</p>
+      </div>
+    ),
   },
   {
-    target: ".tour-pricing-method",
-    content: "Choose your pricing model. Depending on the instrument, you can select Closed-Form (Black-Scholes) or numerical methods like Binomial Trees.",
-    title: "2. Pricing Method",
+    selector: ".tour-pricing-method",
+    content: () => (
+      <div>
+        <h3 className="font-bold text-sm text-blue-400 mb-1 uppercase tracking-wider">2. Mathematical Solver</h3>
+        <p className="text-xs text-slate-300 leading-relaxed">Select your pricing method. Notice how the available solvers dynamically adapt to your instrument. You can hover over the info icon to see the mathematical implementation.</p>
+      </div>
+    ),
   },
   {
-    target: ".tour-instrument-params",
-    content: "Configure the specific parameters for your chosen instrument (e.g., Strike, Time to Expiry, or Barrier Levels).",
-    title: "3. Configure Parameters",
+    selector: ".tour-instrument-params",
+    content: () => (
+      <div>
+        <h3 className="font-bold text-sm text-blue-400 mb-1 uppercase tracking-wider">3. Configure Parameters</h3>
+        <p className="text-xs text-slate-300 leading-relaxed">Go ahead and tweak the inputs. Change the Strike (K), adjust Expiry (T), or play with Volatility. The fields will instantly adapt based on your selected instrument.</p>
+      </div>
+    ),
   },
   {
-    target: ".tour-compute-button",
-    content: "Click this button to run the pricing model. The tour will wait for the calculation to finish.",
-    title: "4. Compute Price",
-    spotlightClicks: true, 
-    hideFooter: true,      
-    placement: "top"
+    selector: ".tour-compute-button",
+    content: () => (
+      <div>
+        <h3 className="font-bold text-sm text-blue-400 mb-1 uppercase tracking-wider">4. Execute Engine</h3>
+        <p className="text-xs text-slate-300 leading-relaxed">Click Compute. The engine will route your inputs through our strict validation pipeline and execute the quantitative model.</p>
+      </div>
+    ),
   },
   {
-    target: ".tour-theoretical-price",
-    content: "Here is your calculated theoretical price and total position value, along with the computation latency.",
-    title: "5. Theoretical Price",
+    selector: ".tour-theoretical-price",
+    content: () => (
+      <div>
+        <h3 className="font-bold text-sm text-blue-400 mb-1 uppercase tracking-wider">5. Theoretical Price</h3>
+        <p className="text-xs text-slate-300 leading-relaxed">Here is your calculated theoretical NPV. Notice the execution latency—our stateless architecture ensures ultra-fast pricing.</p>
+      </div>
+    ),
   },
   {
-    target: ".tour-greeks",
-    content: "And here are your exact first and second-order Greeks, calculated instantly alongside the premium.",
-    title: "6. Risk Sensitivities",
-    placement: "left"
+    selector: ".tour-greeks",
+    content: () => (
+      <div>
+        <h3 className="font-bold text-sm text-blue-400 mb-1 uppercase tracking-wider">6. Risk Sensitivities</h3>
+        <p className="text-xs text-slate-300 leading-relaxed">Your risk sensitivities (Delta, Gamma, Vega, Theta, Rho) are computed simultaneously. Notice we also calculate complex cross-Greeks like Vanna and Volga.</p>
+      </div>
+    ),
   }
 ];
 
-// --- MAIN LOGIC (Renamed to PricerContent) ---
+// --- MAIN LOGIC ---
 function PricerContent() {
+  const { setIsOpen, setCurrentStep } = useTour(); // The new React Tour hook
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  
   const [instKey, setInstKey] = useState(PRICER_CATALOG.instruments[0].key);
   const [methodKey, setMethodKey] = useState(PRICER_CATALOG.instruments[0].methods[0].key);
   const [quantity, setQuantity] = useState(1);
-  const [marketParams, setMarketParams] = useState<Record<string, number>>({ S: 100, r: 0.05, q: 0, sigma: 0.2 });
+  const [marketParams, setMarketParams] = useState<Record<string, number>>({ S: 100, r: 0.02, q: 0, sigma: 0.2 });
   const [instrumentParams, setInstrumentParams] = useState<Record<string, any>>({});
   
   const [result, setResult] = useState<PricingResult | null>(null);
@@ -106,73 +119,26 @@ function PricerContent() {
   const [runQuantity, setRunQuantity] = useState(1);
   const [isComputing, setIsComputing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   const currentInstrument = PRICER_CATALOG.instruments.find((i) => i.key === instKey)!;
   const currentMethod = currentInstrument.methods.find((m) => m.key === methodKey) || currentInstrument.methods[0];
-
-  // --- Joyride State ---
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const [runTour, setRunTour] = useState(false);
-  const [stepIndex, setStepIndex] = useState(0);
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
     if (searchParams?.get("demo") === "true") {
       setTimeout(() => {
-        setStepIndex(0);
-        setRunTour(true);
+        setCurrentStep(0);
+        setIsOpen(true);
       }, 500);
       const newUrl = window.location.pathname;
       window.history.replaceState({}, '', newUrl);
     }
-  }, [searchParams]);
-
-  // Dynamic Scroll Fix for Mobile
-  useEffect(() => {
-    if (runTour && mounted) {
-      const targetSelector = TOUR_STEPS[stepIndex]?.target as string;
-      if (targetSelector) {
-        setTimeout(() => {
-          const element = document.querySelector(targetSelector) as HTMLElement;
-          if (element) {
-            let container = element.parentElement;
-            while (container && container.scrollHeight <= container.clientHeight && container.tagName !== 'BODY') {
-              container = container.parentElement;
-            }
-            if (container && container.tagName !== 'BODY') {
-              const containerRect = container.getBoundingClientRect();
-              const elementRect = element.getBoundingClientRect();
-              const scrollTop = container.scrollTop + (elementRect.top - containerRect.top) - 100;
-              container.scrollTo({ top: Math.max(0, scrollTop), behavior: 'smooth' });
-            }
-          }
-        }, 150); 
-      }
-    }
-  }, [stepIndex, runTour, mounted]);
-
-  const handleJoyrideCallback = (data: CallBackProps) => {
-    const { status, type, action, index } = data;
-    // @ts-ignore
-    if (['finished', 'skipped'].includes(status) || action === 'close') {
-      setRunTour(false);
-      setStepIndex(0);
-      return; 
-    } 
-    // @ts-ignore
-    if (type === 'step:after') {
-      // @ts-ignore
-      if (action === 'next') setStepIndex(index + 1);
-      // @ts-ignore
-      else if (action === 'prev') setStepIndex(index - 1);
-    }
-  };
+  }, [searchParams, setCurrentStep, setIsOpen]);
 
   const startManualDemo = () => {
-    setStepIndex(0);
-    setRunTour(true);
+    setCurrentStep(0);
+    setIsOpen(true);
   };
 
   useEffect(() => {
@@ -192,9 +158,7 @@ function PricerContent() {
       });
   }, [methodKey]);
 
-  // --- PDF Export Logic (Optimized JPEG) ---
   const handleExportPDF = async () => {
-    // FIX: Use getElementById instead of containerRef for the Pricer page
     const printArea = document.getElementById("pricer-export-area");
     if (!printArea) {
       toast.error("Error: Could not find the dashboard area to print.");
@@ -205,10 +169,8 @@ function PricerContent() {
       setIsExporting(true);
       toast.info("Generating PDF... (optimizing size)");
 
-      // 1. Wait for UI to settle
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      // 2. Capture as JPEG
       const dataUrl = await toJpeg(printArea, {
         quality: 0.75,
         pixelRatio: 1.5,
@@ -224,7 +186,6 @@ function PricerContent() {
       const pdf = new jsPDF("l", "mm", "a4");
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
-      
       const pdfHeight = (printArea.offsetHeight * pdfWidth) / printArea.offsetWidth;
       
       let heightLeft = pdfHeight;
@@ -232,17 +193,14 @@ function PricerContent() {
 
       pdf.setFillColor(2, 6, 23); 
       pdf.rect(0, 0, pdfWidth, pageHeight, "F");
-
       pdf.addImage(dataUrl, "JPEG", 0, position, pdfWidth, pdfHeight);
       heightLeft -= pageHeight;
 
       while (heightLeft > 0) {
         position = heightLeft - pdfHeight;
         pdf.addPage();
-        
         pdf.setFillColor(2, 6, 23); 
         pdf.rect(0, 0, pdfWidth, pageHeight, "F");
-        
         pdf.addImage(dataUrl, "JPEG", 0, position, pdfWidth, pdfHeight);
         heightLeft -= pageHeight;
       }
@@ -263,21 +221,16 @@ function PricerContent() {
     setIsComputing(true);
     setRunQuantity(quantity);
     
-    // EXPLICIT MAPPING: Ensure UI keys match Engine expectations
-    // Engine expects 'sigma', 'r', 'q', 'S', 'K', 'T', and 'option_type'
     const combinedInputs = {
       ...marketParams,
       ...instrumentParams,
       sigma: marketParams.sigma, 
-      option_type: instrumentParams.type || instrumentParams.option_type || 'call', // Correct fallback
+      option_type: instrumentParams.type || instrumentParams.option_type || 'call',
       barrierType: instrumentParams.barrierType || 'up-out',
       quantity: quantity
     };
 
-    console.log("🚀 SENDING TO ENGINE:", { instKey, methodKey, combinedInputs });
-
     try {
-      // 1. Try API first
       const response = await fetch('/api/price', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -285,7 +238,7 @@ function PricerContent() {
           instrument: instKey,
           method: methodKey,
           market: marketParams, 
-          params: instrumentParams
+          params: combinedInputs
         }),
       });
 
@@ -295,17 +248,13 @@ function PricerContent() {
       setCalcTime(data.latency); 
       
     } catch (error) {
-      // 2. FALLBACK to Local Engine
-      console.warn("⚠️ API Failed, using local engine fallback...");
-      
       try {
         const localResult = await computeResult(methodKey, instKey, combinedInputs);
-        
-        console.log("✅ ENGINE RETURNED:", localResult);
         setResult(localResult);
-        setCalcTime(2); // Mock latency
+        setCalcTime(2);
       } catch (localErr) {
         console.error("❌ Local fallback failed:", localErr);
+        toast.error(String(localErr));
       }
     } finally {
       setIsComputing(false);
@@ -313,9 +262,8 @@ function PricerContent() {
         instrumentLabel: currentInstrument.label,
         methodLabel: currentMethod.label
       });
-      if (runTour && stepIndex === 3) {
-        setTimeout(() => setStepIndex(4), 400); 
-      }
+      // Programmatically move to step 4 (Theoretical Price) in Reactour after computing
+      setTimeout(() => setCurrentStep(4), 400); 
     }
   };
 
@@ -328,36 +276,7 @@ function PricerContent() {
   if (!mounted) return null;
 
   return (
-    // Added ID "pricer-export-area" for PDF generation and "dark-scrollbar" class is already here
     <main id="pricer-export-area" className="flex flex-col lg:flex-row w-full bg-[#020617] text-white pt-10 lg:pt-4 px-4 lg:px-6 gap-6 h-screen overflow-y-auto lg:overflow-hidden font-sans dark-scrollbar selection:bg-blue-500/30">
-
-      {/* --- JOYRIDE COMPONENT --- */}
-      <Joyride
-        callback={handleJoyrideCallback}
-        continuous
-        stepIndex={stepIndex} 
-        run={runTour}
-        disableScrolling={true} 
-        showProgress
-        showSkipButton
-        hideCloseButton={true}
-        steps={TOUR_STEPS}
-        styles={{
-          options: {
-            zIndex: 10000,
-            primaryColor: '#2563eb', 
-            backgroundColor: '#0f172a', 
-            textColor: '#f8fafc', 
-            arrowColor: '#0f172a',
-            overlayColor: 'rgba(0, 0, 0, 0.75)',
-            spotlightPadding: 6,
-          },
-          tooltipContainer: { textAlign: 'left' },
-          buttonNext: { backgroundColor: '#2563eb', borderRadius: '6px', padding: '8px 16px', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase' },
-          buttonBack: { color: '#94a3b8', marginRight: '10px', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase' },
-          buttonSkip: { color: '#ef4444', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase' }
-        }}
-      />
 
       <section className="w-full lg:w-[55%] flex flex-col bg-slate-900/20 border border-white/10 rounded-3xl p-4 md:p-6 lg:overflow-hidden shrink-0 lg:mb-20 ">
         <div className="flex flex-col md:flex-row md:justify-between items-start mb-6 md:mb-8 gap-2">
@@ -370,12 +289,11 @@ function PricerContent() {
           </div>
           
           <div className="flex items-center gap-2 shrink-0">
-             {/* PDF EXPORT BUTTON */}
             <button 
               onClick={handleExportPDF}
               disabled={isExporting}
               className="flex items-center gap-2 text-[10px] uppercase font-bold tracking-widest text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1.5 rounded-lg hover:bg-emerald-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              data-html2canvas-ignore="true" // Ignore the button itself during print
+              data-html2canvas-ignore="true"
             >
                {isExporting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />} 
                {isExporting ? "Saving..." : "Export"}
@@ -604,11 +522,34 @@ function PricerContent() {
   );
 }
 
-// --- 3. NEW WRAPPER COMPONENT ---
+// --- NEW WRAPPER COMPONENT: INJECTS THE TOUR CONTEXT ---
 export default function PricerPage() {
   return (
     <Suspense fallback={<div className="flex h-screen w-full items-center justify-center bg-[#020617] text-slate-500 font-mono text-sm">LOADING PRICER ENGINE...</div>}>
-      <PricerContent />
+      <TourProvider 
+        steps={TOUR_STEPS}
+        onClickMask={() => {}} // Disables clicking outside to close
+        styles={{
+          popover: (base) => ({
+            ...base,
+            backgroundColor: '#0f172a',
+            color: '#f8fafc',
+            borderRadius: '16px',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8)',
+            padding: '24px'
+          }),
+          maskArea: (base) => ({ ...base, rx: 8 }),
+          badge: (base) => ({ ...base, backgroundColor: '#3b82f6', color: '#ffffff', fontWeight: 'bold' }),
+          close: (base) => ({ ...base, color: '#64748b', right: 16, top: 16 }),
+          dot: (base, state) => ({
+            ...base,
+            backgroundColor: state?.current ? '#3b82f6' : '#334155',
+          }),
+        }}
+      >
+        <PricerContent />
+      </TourProvider>
     </Suspense>
   );
 }

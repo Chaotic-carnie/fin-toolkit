@@ -3,7 +3,7 @@
 export const PRICER_CATALOG = {
   market_params: [
     { key: "S", label: "Spot", type: "number", default: 100.0, step: 0.1 },
-    { key: "r", label: "Rate (cc)", type: "number", default: 0.05, step: 0.001 },
+    { key: "r", label: "Rate (cc)", type: "number", default: 0.02, step: 0.001 },
     { key: "q", label: "Div Yield (cc)", type: "number", default: 0.0, step: 0.001 },
     { key: "sigma", label: "Vol", type: "number", default: 0.2, step: 0.01 },
   ],

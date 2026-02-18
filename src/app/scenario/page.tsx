@@ -267,8 +267,8 @@ export default function ScenarioRepricePage() {
   if (!isHydrated) return null; 
 
   return (
-    <div className="h-screen w-full flex flex-col overflow-hidden bg-[#020617] text-slate-300 pt-15 lg:pt-2 pb-15">
-      
+<div className="h-[calc(100dvh-64px)] w-full flex flex-col overflow-y-auto lg:overflow-hidden dark-scrollbar bg-[#020617] text-slate-300 pt-4 lg:pt-2 pb-10 lg:pb-0">
+
       {/* 1. THEMED TITLE BAR */}
       <div className="shrink-0 px-4 lg:px-6 py-4 border-b border-white/5 bg-[#020617] flex justify-between items-end">
         <div>
@@ -283,7 +283,7 @@ export default function ScenarioRepricePage() {
 
       {/* 2. DUAL-PANE WORKSPACE */}
       {/* MOBILE FIX: flex-col on mobile, flex-row on desktop. overflow-y-auto ensures the whole container scrolls on phone */}
-      <div className="flex-1 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden dark-scrollbar w-full">
+      <div className="flex-1 flex flex-col lg:flex-row overflow-visible lg:overflow-hidden w-full">
         
         {/* ================= LEFT PANEL: Strategy Builder (Input) ================= */}
         {/* MOBILE FIX: w-full on mobile, lg:w-[45%] on desktop. shrink-0 guarantees it doesn't collapse */}

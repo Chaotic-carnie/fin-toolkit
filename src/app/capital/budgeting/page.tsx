@@ -75,7 +75,7 @@ export default function CapBudPage() {
 
   return (
     // MOBILE FIX: Use `h-full` to let it dictate natural scrolling on mobile, removing `min-h-0` restriction at the top level
-    <div className="h-full w-full bg-[#020617] text-white flex flex-col overflow-hidden font-sans">
+    <div className="min-h-full lg:h-full w-full bg-[#020617] text-white flex flex-col overflow-hidden font-sans">
       
       {/* TITLE BAR */}
       <div className="shrink-0 px-4 md:px-6 py-4 border-b border-white/5 bg-[#020617] flex flex-col md:flex-row md:justify-between items-start md:items-end gap-2">

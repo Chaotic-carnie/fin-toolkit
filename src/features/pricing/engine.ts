@@ -1,7 +1,6 @@
-// src/features/pricing/engine.ts
+import { z } from "zod";
 
 // --- RNG Utils ---
-// Simple Linear Congruential Generator for seeding
 const createRNG = (seed: number) => {
   let state = seed;
   return () => {
@@ -10,7 +9,6 @@ const createRNG = (seed: number) => {
   };
 };
 
-// Box-Muller with Seeded RNG
 const randn = (rng: () => number) => {
   let u = 0, v = 0;
   while (u === 0) u = rng();
@@ -36,22 +34,38 @@ export type PricingResult = {
   volga: number; 
 };
 
-// --- Solvers ---
+// --- STRICT VALIDATION HELPER ---
+// This throws a fatal error if any required parameter is missing or invalid.
+const requireNumber = (val: any, name: string): number => {
+  if (val === undefined || val === null || val === '') {
+    throw new Error(`CRITICAL ENGINE ERROR: Missing required parameter '${name}'`);
+  }
+  const num = Number(val);
+  if (Number.isNaN(num)) {
+    throw new Error(`CRITICAL ENGINE ERROR: Parameter '${name}' must be a valid number. Received: ${val}`);
+  }
+  return num;
+};
+
+
+// --- Solvers (No Defaults Allowed) ---
 
 const solveBlackScholes = (inputs: any, isDigital = false) => {
   const { S, K, T, r, q, sigma, type, payout } = inputs;
-  if (T <= 0) return type === 'call' ? Math.max(0, S - K) : Math.max(0, K - S); // Intrinsic value if expired
+  const isCall = type === 'call';
+  const sign = isCall ? 1 : -1;
+
+  if (T <= 0) {
+    if (isDigital) return isCall ? (S > K ? payout : 0) : (S < K ? payout : 0);
+    return isCall ? Math.max(0, S - K) : Math.max(0, K - S); 
+  }
   
   const sqrtT = Math.sqrt(T);
   const d1 = (Math.log(S / K) + (r - q + 0.5 * sigma ** 2) * T) / (sigma * sqrtT);
   const d2 = d1 - sigma * sqrtT;
-  const isCall = type === 'call';
-  const sign = isCall ? 1 : -1;
 
   if (isDigital) {
-    // FIX: Ensure payout is treated as a number, defaulting to 1 only if undefined
-    const cash = payout !== undefined ? Number(payout) : 1;
-    return cash * Math.exp(-r * T) * N(sign * d2);
+    return payout * Math.exp(-r * T) * N(sign * d2);
   }
 
   const term1 = S * Math.exp(-q * T) * N(sign * d1);
@@ -60,18 +74,16 @@ const solveBlackScholes = (inputs: any, isDigital = false) => {
 };
 
 const solveBinomial = (inputs: any, isAmerican = false) => {
-  // FIX: Added default steps = 100 if undefined
-  const { S, K, T, r, q, sigma, type } = inputs;
-  const steps = inputs.steps || 100; 
+  const { S, K, T, r, q, sigma, type, steps } = inputs;
+  const isCall = type === 'call';
   
-  if (T <= 0) return type === 'call' ? Math.max(0, S - K) : Math.max(0, K - S);
+  if (T <= 0) return isCall ? Math.max(0, S - K) : Math.max(0, K - S);
 
   const dt = T / steps;
   const u = Math.exp(sigma * Math.sqrt(dt));
   const d = 1 / u;
   const p = (Math.exp((r - q) * dt) - d) / (u - d);
   const df = Math.exp(-r * dt);
-  const isCall = type === 'call';
 
   let prices = new Float64Array(steps + 1);
   for (let i = 0; i <= steps; i++) {
@@ -95,17 +107,8 @@ const solveBinomial = (inputs: any, isAmerican = false) => {
 };
 
 const solveMonteCarloBarrier = (inputs: any, useBridge = false) => {
-  const { S, K, T, r, q, sigma, type, seed } = inputs;
+  const { S, K, T, r, q, sigma, type, seed, H, barrierType, paths, steps } = inputs;
   
-  // FIX 1: Align default H and BarrierType. 
-  // If H > S, default should be 'up-out'. If H < S, 'down-out'.
-  // We default to 'up-out' to match config.ts defaults (H=120, S=100).
-  const H = inputs.H || (type === 'call' ? S * 1.2 : S * 0.8);
-  const barrierType = inputs.barrierType || 'up-out'; // CHANGED from 'down-and-out'
-
-  const paths = inputs.paths || 1000;
-  const steps = inputs.steps || 50;
-
   const dt = T / steps;
   const drift = (r - q - 0.5 * sigma ** 2) * dt;
   const volSqDt = sigma * Math.sqrt(dt);
@@ -113,17 +116,15 @@ const solveMonteCarloBarrier = (inputs: any, useBridge = false) => {
   const isUp = barrierType.includes('up');
   const isOut = barrierType.includes('out');
 
-  // FIX 2: Instant Knock-out Check (Time 0)
-  // If the starting spot is already violating the barrier, value is 0 immediately.
   if (isUp && S >= H && isOut) return 0;
   if (!isUp && S <= H && isOut) return 0;
   
-  const rng = createRNG(seed || 1234);
+  const rng = createRNG(seed || 1234); // Seed remains optional
   let sum = 0;
 
   for (let i = 0; i < paths; i++) {
     let currentS = S;
-    let alive = true; // "alive" means "has not hit the barrier"
+    let alive = true; 
 
     for (let j = 0; j < steps; j++) {
       const prevS = currentS;
@@ -133,23 +134,17 @@ const solveMonteCarloBarrier = (inputs: any, useBridge = false) => {
       if (isUp && currentS >= H) hit = true;
       if (!isUp && currentS <= H) hit = true;
 
-      // Brownian Bridge Correction
       if (useBridge && !hit) {
-        // Probability of hitting barrier between steps
         const p_hit = Math.exp(-2 * Math.log(prevS / H) * Math.log(currentS / H) / (sigma ** 2 * dt));
         if (rng() < p_hit) hit = true;
       }
 
       if (hit) {
         alive = false;
-        break;
+        if (isOut) break; 
       }
     }
 
-    // Payoff Logic
-    // If Out-option: Must remain alive to pay.
-    // If In-option: Must die (hit barrier) to pay.
-    
     if (isOut && !alive) continue; 
     if (!isOut && alive) continue; 
 
@@ -161,33 +156,17 @@ const solveMonteCarloBarrier = (inputs: any, useBridge = false) => {
 };
 
 const solveAsian = (inputs: any, isGeometric = false) => {
-  // FIX: Ensure types are destructured from inputs correctly
-  const { S, K, T, r, q, sigma, type, seed } = inputs;
-  const paths = inputs.paths || 1000;
-  const fixings = inputs.fixings || 30;
+  const { S, K, T, r, q, sigma, type, seed, paths, fixings } = inputs;
   const isCall = type === 'call';
 
   if (isGeometric) {
-    // FIX: Standard Geometric Asian Adjustment
-    // Effective Volatility: sigma_geo = sigma / sqrt(3)
-    // Effective Cost of Carry: b_geo = 0.5 * (r - q - sigma^2/6)
-    // Actually, usually priced as BS(S, K, T, r, q_eff, sigma_eff)
-    // where q_eff = r - 0.5*(r - q - sigma^2/6).
-    
     const sigmaGeo = sigma / Math.sqrt(3);
     const bGeo = 0.5 * (r - q - (sigma ** 2) / 6);
-    
-    // We can map this to Black-Scholes Formula by adjusting 'q'
-    // standard BS uses q in d1 as: (r - q + 0.5*sigma^2)
-    // We need d1 = (ln(S/K) + (bGeo + 0.5*sigmaGeo^2)*T) / ...
-    
     const d1 = (Math.log(S / K) + (bGeo + 0.5 * sigmaGeo ** 2) * T) / (sigmaGeo * Math.sqrt(T));
     const d2 = d1 - sigmaGeo * Math.sqrt(T);
-    
     const sign = isCall ? 1 : -1;
     const term1 = S * Math.exp((bGeo - r) * T) * N(sign * d1);
     const term2 = K * Math.exp(-r * T) * N(sign * d2);
-    
     return sign * (term1 - term2);
   }
 
@@ -211,89 +190,113 @@ const solveAsian = (inputs: any, isGeometric = false) => {
   return (sumPayoff / paths) * Math.exp(-r * T);
 };
 
+// --- CORE ROUTER & VALIDATOR ---
 const calculatePrice = (methodKey: string, inputs: any) => {
-  // Ensure basic inputs exist
-  const S = inputs.S || 100;
-  const K = inputs.K || 100;
-  const T = inputs.T || 1.0;
-  const r = inputs.r || 0.05;
-  const q = inputs.q || 0;
-  const sigma = inputs.sigma || 0.2;
-  const type = inputs.option_type || 'call';
-  
-  const cleaned = { ...inputs, S, K, T, r, q, sigma, type };
+  const instrumentKey = inputs.key;
 
+  // 1. STRICT REQUIREMENT FOR CORE MARKET PARAMS
+  const S = requireNumber(inputs.S, 'Spot Price (S)');
+  const K = requireNumber(inputs.K, 'Strike Price (K)');
+  const T = requireNumber(inputs.T, 'Time to Expiry (T)');
+  const r = requireNumber(inputs.r, 'Risk-Free Rate (r)');
+  const q = requireNumber(inputs.q, 'Dividend Yield (q)');
+  const sigma = requireNumber(inputs.sigma, 'Volatility (sigma)');
+  
+  // 2. STRICT OPTION TYPE VALIDATION
+  let type = 'call';
+  if (instrumentKey !== 'forward') {
+    const rawType = inputs.type || inputs.option_type;
+    if (!rawType || (rawType.toLowerCase() !== 'call' && rawType.toLowerCase() !== 'put')) {
+      throw new Error("CRITICAL ENGINE ERROR: Option 'type' must be 'call' or 'put'");
+    }
+    type = rawType.toLowerCase();
+  }
+  
+  const cleaned: any = { ...inputs, S, K, T, r, q, sigma, type };
+
+  // 3. STRICT INSTRUMENT/METHOD VALIDATION
+  if (instrumentKey === 'digital') {
+    cleaned.payout = requireNumber(inputs.payout, 'Cash Payout');
+  }
+  if (instrumentKey === 'barrier') {
+    cleaned.H = requireNumber(inputs.H, 'Barrier Level (H)');
+    if (!inputs.barrierType) throw new Error("CRITICAL ENGINE ERROR: Missing 'barrierType'");
+  }
+  if (methodKey === 'binomial_crr') {
+    cleaned.steps = requireNumber(inputs.steps, 'Tree Steps');
+  }
+  if (methodKey.includes('mc')) {
+    cleaned.paths = requireNumber(inputs.paths, 'Monte Carlo Paths');
+    if (methodKey !== 'arithmetic_mc') {
+      cleaned.steps = requireNumber(inputs.steps, 'Simulation Steps');
+    }
+  }
+  if (instrumentKey === 'asian' && methodKey === 'arithmetic_mc') {
+    cleaned.fixings = requireNumber(inputs.fixings, 'Asian Fixings');
+  }
+
+  // 4. ROUTE TO SOLVER
   switch (methodKey) {
-    case 'black_scholes': 
-      // FIX: Check if payout is explicitly in the inputs to trigger Digital pricing
-      return solveBlackScholes(cleaned, cleaned.payout !== undefined);
-    case 'binomial_crr': return solveBinomial(cleaned, cleaned.key === 'american');
+    case 'black_scholes': return solveBlackScholes(cleaned, instrumentKey === 'digital');
+    case 'binomial_crr': return solveBinomial(cleaned, instrumentKey === 'american');
     case 'mc_discrete': return solveMonteCarloBarrier(cleaned, false);
     case 'mc_bridge': return solveMonteCarloBarrier(cleaned, true);
     case 'geometric_closed': return solveAsian(cleaned, true);
     case 'arithmetic_mc': return solveAsian(cleaned, false);
-    case 'discounted_value': 
-      // Note: This calculates Value (NPV), not Forward Price.
-      return (S * Math.exp(-q * T)) - (K * Math.exp(-r * T));
-    default: return 0;
+    case 'discounted_value': return (S * Math.exp(-q * T)) - (K * Math.exp(-r * T));
+    default: throw new Error(`CRITICAL ENGINE ERROR: Unknown pricing method '${methodKey}'`);
   }
 };
 
 
 export const computeResult = async (methodKey: string, instrumentKey: string, inputs: any): Promise<PricingResult> => {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     setTimeout(() => {
-      resolve(calculatePriceDetails(methodKey, instrumentKey, inputs));
+      try {
+        resolve(calculatePriceDetails(methodKey, instrumentKey, inputs));
+      } catch (e) {
+        reject(e); // Properly bubble up the strict validation errors
+      }
     }, 50);
   });
 };
 
 export const calculatePriceDetails = (methodKey: string, instrumentKey: string, inputs: any) => {
     const baseInputs = { ...inputs, key: instrumentKey };
+    
+    // Base Price (If any input is missing, it will throw fatally right here)
     const price = calculatePrice(methodKey, baseInputs);
 
-    // Finite Difference Bumps
-    const dS = inputs.S * 0.01;
+    // Finite Difference Precision
+    const dS = baseInputs.S * 0.001; 
     const dT = 1 / 365; 
     const dVol = 0.01;
     const dR = 0.01;
 
-    // 1st Order Bumps
-    const p_up = calculatePrice(methodKey, { ...baseInputs, S: inputs.S + dS });
-    const p_down = calculatePrice(methodKey, { ...baseInputs, S: inputs.S - dS });
-    const p_vol_up = calculatePrice(methodKey, { ...baseInputs, sigma: inputs.sigma + dVol });
-    const p_vol_down = calculatePrice(methodKey, { ...baseInputs, sigma: inputs.sigma - dVol });
-    const p_time_down = calculatePrice(methodKey, { ...baseInputs, T: inputs.T - dT }); // Renamed for clarity
-    const p_rho_up = calculatePrice(methodKey, { ...baseInputs, r: inputs.r + dR });
+    const p_up = calculatePrice(methodKey, { ...baseInputs, S: baseInputs.S + dS });
+    const p_down = calculatePrice(methodKey, { ...baseInputs, S: baseInputs.S - dS });
+    const p_vol_up = calculatePrice(methodKey, { ...baseInputs, sigma: baseInputs.sigma + dVol });
+    const p_vol_down = calculatePrice(methodKey, { ...baseInputs, sigma: baseInputs.sigma - dVol });
+    const p_time_down = calculatePrice(methodKey, { ...baseInputs, T: baseInputs.T - dT }); 
+    const p_rho_up = calculatePrice(methodKey, { ...baseInputs, r: baseInputs.r + dR });
 
-    // 2nd Order Cross-Bumps (For Vanna & Volga)
-    // To find Vanna (dDelta/dVol), we need Delta at bumped Vol levels
-    const p_up_vol_up = calculatePrice(methodKey, { ...baseInputs, S: inputs.S + dS, sigma: inputs.sigma + dVol });
-    const p_down_vol_up = calculatePrice(methodKey, { ...baseInputs, S: inputs.S - dS, sigma: inputs.sigma + dVol });
-    
-    const p_up_vol_down = calculatePrice(methodKey, { ...baseInputs, S: inputs.S + dS, sigma: inputs.sigma - dVol });
-    const p_down_vol_down = calculatePrice(methodKey, { ...baseInputs, S: inputs.S - dS, sigma: inputs.sigma - dVol });
+    const p_up_vol_up = calculatePrice(methodKey, { ...baseInputs, S: baseInputs.S + dS, sigma: baseInputs.sigma + dVol });
+    const p_down_vol_up = calculatePrice(methodKey, { ...baseInputs, S: baseInputs.S - dS, sigma: baseInputs.sigma + dVol });
+    const p_up_vol_down = calculatePrice(methodKey, { ...baseInputs, S: baseInputs.S + dS, sigma: baseInputs.sigma - dVol });
+    const p_down_vol_down = calculatePrice(methodKey, { ...baseInputs, S: baseInputs.S - dS, sigma: baseInputs.sigma - dVol });
 
-    // Standard Greeks
     const delta = (p_up - p_down) / (2 * dS);
     const gamma = (p_up - 2 * price + p_down) / (dS ** 2);
     const vega = (p_vol_up - p_vol_down) / (2 * dVol) / 100;
     
-    // Theta is usually priced as (Price(T - dT) - Price(T)) / dT
-    // Assuming you want it as a daily decay based on your dT = 1/365
     const theta = (p_time_down - price); 
     const rho = (p_rho_up - price) / 100;
 
-    // Higher-Order Greeks via Finite Difference
-    // 1. Calculate Delta at Vol Up and Vol Down
     const delta_vol_up = (p_up_vol_up - p_down_vol_up) / (2 * dS);
     const delta_vol_down = (p_up_vol_down - p_down_vol_down) / (2 * dS);
     
-    // Vanna: d(Delta)/d(Vol)
     const vanna = (delta_vol_up - delta_vol_down) / (2 * dVol) / 100;
-
-    // Volga: d2(Price)/d(Vol)2
-    const volga = (p_vol_up - 2 * price + p_vol_down) / (dVol ** 2) / 10000; // Scaled to match Vega's /100 convention
+    const volga = (p_vol_up - 2 * price + p_vol_down) / (dVol ** 2) / 10000; 
 
     return { 
         price, 
@@ -306,3 +309,41 @@ export const calculatePriceDetails = (methodKey: string, instrumentKey: string, 
         volga: isNaN(volga) ? 0 : volga 
     };
 };
+
+// --- ZOD SCHEMAS ---
+export const InstrumentTypeSchema = z.enum(["vanilla", "digital", "barrier", "american", "asian", "forward"]);
+export const OptionTypeSchema = z.enum(["call", "put"]);
+export const MethodSchema = z.enum(["black_scholes", "binomial_crr", "mc_discrete", "mc_bridge", "arithmetic_mc", "geometric_closed", "discounted_value"]);
+export const BarrierTypeSchema = z.enum(["up-in", "up-out", "down-in", "down-out"]);
+
+export const MarketStateSchema = z.object({
+  S: z.number().positive(),
+  r: z.number(),
+  q: z.number().default(0),
+  sigma: z.number().positive(),
+});
+
+// THE FIX: Use z.record to guarantee Zod NEVER strips custom parameters 
+// like 'payout', 'H', or 'steps' before they reach the engine.
+export const PricingParamsSchema = z.record(z.string(), z.any());
+
+export const PricingRequestSchema = z.object({
+  market: MarketStateSchema,
+  instrument: InstrumentTypeSchema,
+  method: MethodSchema,
+  params: PricingParamsSchema,
+});
+
+export const GreeksSchema = z.object({
+  delta: z.number(),
+  gamma: z.number(),
+  vega: z.number(),
+  theta: z.number(),
+  rho: z.number(),
+});
+
+export const PricingResultSchema = z.object({
+  price: z.number(),
+  greeks: GreeksSchema,
+  latency: z.number().optional(), 
+});

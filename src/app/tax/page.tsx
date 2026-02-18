@@ -15,7 +15,6 @@ import { Info, Calculator, TrendingUp, HelpCircle, ArrowRight } from 'lucide-rea
 
 const EFFECTIVE_DATE_REFORM_STR = '2024-07-23';
 
-// Helper for consistent Label + Tooltip styling with new theme colors
 const LabelHelp = ({ label, help }: { label: string, help: string }) => (
   <div className="flex items-center gap-1.5 mb-1.5">
     <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{label}</Label>
@@ -23,7 +22,7 @@ const LabelHelp = ({ label, help }: { label: string, help: string }) => (
       <TooltipTrigger asChild>
         <Info className="w-3 h-3 text-slate-500 hover:text-blue-500 cursor-help transition-colors" />
       </TooltipTrigger>
-      <TooltipContent className="bg-[#0f172a] border-white/10 text-slate-300 text-xs max-w-[250px] p-3 shadow-xl">
+      <TooltipContent className="bg-[#0f172a] border-slate-700 text-slate-300 text-xs max-w-[250px] p-3 shadow-xl">
         {help}
       </TooltipContent>
     </Tooltip>
@@ -56,17 +55,14 @@ export default function TaxPage() {
 
   return (
     <TooltipProvider delayDuration={200}>
-      {/* MOBILE FIX: 
-         - pt-28 on mobile clears the taller 2-row mobile navbar.
-         - lg:pt-24 on desktop clears the single-row navbar. 
-         - px-4 for tighter mobile margins, md:px-8 for desktop.
-      */}
-      <div className="fixed inset-0 bg-[#020617] overflow-y-auto dark-scrollbar pt-32 lg:pt-24 pb-20 px-4 md:px-8">
+      <div className="relative h-[calc(100dvh-64px)] w-full bg-[#020617] overflow-y-auto dark-scrollbar isolate px-4 md:px-8 pb-20">
         
-        {/* RADIAL GRADIENT BACKDROP */}
-        <div className="fixed inset-0 bg-[radial-gradient(circle_at_50%_20%,_#1d4ed815_0%,_transparent_50%)] pointer-events-none z-0" />
+        <div 
+          className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,_#1d4ed810_0%,_transparent_70%)] pointer-events-none z-[-1]" 
+          aria-hidden="true"
+        />
 
-        <div className="relative z-10 max-w-[1800px] mx-auto">
+        <div className="max-w-[1800px] mx-auto pt-8">
           
           <header className="mb-6 lg:mb-8 border-b border-white/10 pb-4 flex flex-col md:flex-row md:justify-between md:items-end gap-2">
             <div>
@@ -80,15 +76,15 @@ export default function TaxPage() {
             {!result && <div className="text-[9px] md:text-[10px] text-slate-500 font-mono hidden md:block">READY TO COMPUTE</div>}
           </header>
 
-          {/* MOBILE FIX: Stacks columns on mobile (grid-cols-1), side-by-side on desktop (lg:grid-cols-2) */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
             
             {/* ================= LEFT COLUMN: INPUTS ================= */}
             <div className="space-y-6">
               
               {/* 1. Transaction Details */}
-              <Card className="bg-white/5 backdrop-blur-md border border-white/10 shadow-2xl">
-                <CardHeader className="py-3 lg:py-4 border-b border-white/5 px-4 lg:px-6">
+              {/* THE FIX: Changed from backdrop-blur-md shadow-2xl to bg-slate-900/40 border-slate-800 overflow-hidden */}
+              <Card className="bg-slate-900/40 border-slate-800 overflow-hidden">
+                <CardHeader className="py-3 lg:py-4 border-b border-slate-800/50 px-4 lg:px-6">
                   <CardTitle className="text-[10px] lg:text-xs font-black uppercase tracking-[0.2em] text-slate-300 flex items-center gap-2">
                     <Calculator className="w-4 h-4 text-blue-500" /> Transaction Parameters
                   </CardTitle>
@@ -97,8 +93,8 @@ export default function TaxPage() {
                   <div>
                     <LabelHelp label="Asset Type" help="Determines the tax section (111A, 112A, 115BBH) and holding period rules." />
                     <Select onValueChange={(v) => setForm({...form, asset_type: v as AssetType})} defaultValue={form.asset_type}>
-                      <SelectTrigger className="bg-black/20 border-white/10 h-11 text-white text-[10px] md:text-xs font-bold uppercase focus:ring-blue-600/50"><SelectValue /></SelectTrigger>
-                      <SelectContent className="bg-[#0f172a] border-white/10 text-white text-[10px] md:text-xs font-bold uppercase">
+                      <SelectTrigger className="bg-[#020617] border-slate-800 h-11 text-white text-[10px] md:text-xs font-bold uppercase focus:ring-blue-600/50"><SelectValue /></SelectTrigger>
+                      <SelectContent className="bg-[#0f172a] border-slate-700 text-white text-[10px] md:text-xs font-bold uppercase">
                         <SelectItem value="listed_equity_stt">Listed Equity (STT)</SelectItem>
                         <SelectItem value="listed_security_other">Listed Debt / Other</SelectItem>
                         <SelectItem value="land_building">Land / Building</SelectItem>
@@ -111,65 +107,65 @@ export default function TaxPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <LabelHelp label="Acquired Date" help="Date of purchase used to calculate holding period." />
-                      <Input type="date" value={form.acquired_date} className="date-field bg-black/20 border-white/10 h-11 md:h-10 text-white text-[10px] md:text-xs accent-blue-600 w-full" onChange={(e) => setForm({...form, acquired_date: e.target.value})} />
+                      <Input type="date" value={form.acquired_date} className="date-field bg-[#020617] border-slate-800 h-11 md:h-10 text-white text-[10px] md:text-xs accent-blue-600 w-full" onChange={(e) => setForm({...form, acquired_date: e.target.value})} />
                     </div>
                     <div>
                       <LabelHelp label="Sold Date" help="Must be on or after July 23, 2024 (Post-Budget Reform)." />
-                      <Input type="date" min={EFFECTIVE_DATE_REFORM_STR} value={form.sold_date} className="date-field bg-black/20 border-white/10 h-11 md:h-10 text-white text-[10px] md:text-xs accent-blue-600 w-full" onChange={(e) => {if (e.target.value < EFFECTIVE_DATE_REFORM_STR) return; setForm({...form, sold_date: e.target.value})}} />
+                      <Input type="date" min={EFFECTIVE_DATE_REFORM_STR} value={form.sold_date} className="date-field bg-[#020617] border-slate-800 h-11 md:h-10 text-white text-[10px] md:text-xs accent-blue-600 w-full" onChange={(e) => {if (e.target.value < EFFECTIVE_DATE_REFORM_STR) return; setForm({...form, sold_date: e.target.value})}} />
                     </div>
                   </div>
 
                   <div>
                     <LabelHelp label="Cost of Acquisition (₹)" help="Purchase price + Brokerage (excluding STT)." />
-                    <Input type="number" value={form.purchase_value} className="bg-black/20 border-white/10 h-11 md:h-10 text-white font-mono text-sm" onChange={(e) => setForm({...form, purchase_value: Number(e.target.value)})} />
+                    <Input type="number" value={form.purchase_value} className="bg-[#020617] border-slate-800 h-11 md:h-10 text-white font-mono text-sm" onChange={(e) => setForm({...form, purchase_value: Number(e.target.value)})} />
                   </div>
 
                   <div>
                     <LabelHelp label="Sale Value (₹)" help="Total consideration received from the sale." />
-                    <Input type="number" value={form.sale_value} className="bg-black/20 border-white/10 h-11 md:h-10 text-white font-mono text-sm" onChange={(e) => setForm({...form, sale_value: Number(e.target.value)})} />
+                    <Input type="number" value={form.sale_value} className="bg-[#020617] border-slate-800 h-11 md:h-10 text-white font-mono text-sm" onChange={(e) => setForm({...form, sale_value: Number(e.target.value)})} />
                   </div>
 
                   <div>
                     <LabelHelp label="Transfer Expenses (₹)" help="Direct expenses like brokerage. Not allowed for VDA." />
-                    <Input type="number" value={form.transfer_expenses} className="bg-black/20 border-white/10 h-11 md:h-10 text-white font-mono text-sm" onChange={(e) => setForm({...form, transfer_expenses: Number(e.target.value)})} />
+                    <Input type="number" value={form.transfer_expenses} className="bg-[#020617] border-slate-800 h-11 md:h-10 text-white font-mono text-sm" onChange={(e) => setForm({...form, transfer_expenses: Number(e.target.value)})} />
                   </div>
                 </CardContent>
               </Card>
 
               {/* 2. Rates */}
-              <Card className="bg-white/5 backdrop-blur-md border border-white/10">
-                <CardHeader className="py-3 px-4 lg:px-6 border-b border-white/5">
+              <Card className="bg-slate-900/40 border-slate-800 overflow-hidden">
+                <CardHeader className="py-3 px-4 lg:px-6 border-b border-slate-800/50">
                   <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-400">Tax Rates</CardTitle>
                 </CardHeader>
                 <CardContent className="p-4 lg:p-6 grid grid-cols-3 gap-2 lg:gap-4">
                   <div>
                     <LabelHelp label="Slab" help="Your applicable slab rate (e.g. 0.30)." />
-                    <Input type="number" step="0.01" value={form.marginal_rate} className="bg-black/20 border-white/10 h-10 md:h-9 text-[10px] md:text-xs text-white" onChange={(e) => setForm({...form, marginal_rate: Number(e.target.value)})} />
+                    <Input type="number" step="0.01" value={form.marginal_rate} className="bg-[#020617] border-slate-800 h-10 md:h-9 text-[10px] md:text-xs text-white font-mono" onChange={(e) => setForm({...form, marginal_rate: Number(e.target.value)})} />
                   </div>
                   <div>
                     <LabelHelp label="Surcharge" help="Applicable surcharge based on total income." />
-                    <Input type="number" step="0.01" value={form.surcharge_rate} className="bg-black/20 border-white/10 h-10 md:h-9 text-[10px] md:text-xs text-white" onChange={(e) => setForm({...form, surcharge_rate: Number(e.target.value)})} />
+                    <Input type="number" step="0.01" value={form.surcharge_rate} className="bg-[#020617] border-slate-800 h-10 md:h-9 text-[10px] md:text-xs text-white font-mono" onChange={(e) => setForm({...form, surcharge_rate: Number(e.target.value)})} />
                   </div>
                   <div>
                     <LabelHelp label="Cess" help="Health & Education Cess (default 0.04)." />
-                    <Input type="number" step="0.01" value={form.cess_rate} className="bg-black/20 border-white/10 h-10 md:h-9 text-[10px] md:text-xs text-white" onChange={(e) => setForm({...form, cess_rate: Number(e.target.value)})} />
+                    <Input type="number" step="0.01" value={form.cess_rate} className="bg-[#020617] border-slate-800 h-10 md:h-9 text-[10px] md:text-xs text-white font-mono" onChange={(e) => setForm({...form, cess_rate: Number(e.target.value)})} />
                   </div>
                 </CardContent>
               </Card>
 
               {/* 3. Equity Specifics */}
-              <Card className="bg-white/5 backdrop-blur-md border border-white/10 shadow-lg">
-                <CardHeader className="py-3 px-4 lg:px-6 border-b border-white/5">
+              <Card className="bg-slate-900/40 border-slate-800 overflow-hidden">
+                <CardHeader className="py-3 px-4 lg:px-6 border-b border-slate-800/50">
                   <CardTitle className="text-[10px] font-bold text-slate-300 uppercase italic tracking-widest">Equity-Specific Inputs</CardTitle>
                 </CardHeader>
                 <CardContent className="p-4 lg:p-6 space-y-4 lg:space-y-5">
-                  <div className="flex items-center justify-between bg-black/20 p-3 rounded border border-white/10">
+                  <div className="flex items-center justify-between bg-[#020617] p-3 rounded border border-slate-800">
                     <div className="flex items-center gap-3">
                       <Checkbox 
                         id="stt" 
                         checked={form.stt_paid} 
                         onCheckedChange={(c) => setForm({...form, stt_paid: !!c})}
-                        className="border-white/20 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600 w-5 h-5 md:w-4 md:h-4" 
+                        className="border-slate-700 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600 w-5 h-5 md:w-4 md:h-4" 
                       />
                       <Label htmlFor="stt" className="text-[9px] md:text-[10px] font-black text-slate-200 uppercase tracking-tighter cursor-pointer">STT Paid (Eligible for 111A/112A)</Label>
                     </div>
@@ -179,11 +175,11 @@ export default function TaxPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <LabelHelp label="Other 112A Gains (₹)" help="LTCG already realized this year." />
-                      <Input type="number" value={form.other_112a_ltcg_in_same_fy} className="bg-black/20 border-white/10 h-11 md:h-9 text-xs text-white" onChange={(e) => setForm({...form, other_112a_ltcg_in_same_fy: Number(e.target.value)})} />
+                      <Input type="number" value={form.other_112a_ltcg_in_same_fy} className="bg-[#020617] border-slate-800 h-11 md:h-9 text-xs text-white font-mono" onChange={(e) => setForm({...form, other_112a_ltcg_in_same_fy: Number(e.target.value)})} />
                     </div>
                     <div>
                       <LabelHelp label="Basic Exemption Left (₹)" help="Remaining basic exemption limit." />
-                      <Input type="number" value={form.basic_exemption_remaining} className="bg-black/20 border-white/10 h-11 md:h-9 text-xs text-white" onChange={(e) => setForm({...form, basic_exemption_remaining: Number(e.target.value)})} />
+                      <Input type="number" value={form.basic_exemption_remaining} className="bg-[#020617] border-slate-800 h-11 md:h-9 text-xs text-white font-mono" onChange={(e) => setForm({...form, basic_exemption_remaining: Number(e.target.value)})} />
                     </div>
                   </div>
                 </CardContent>
@@ -202,25 +198,26 @@ export default function TaxPage() {
             {/* ================= RIGHT COLUMN: OUTPUTS ================= */}
             <div className="space-y-6 pb-20 lg:pb-0">
               {!result ? (
-                <div className="h-full flex flex-col items-center justify-center border-2 border-dashed border-white/10 rounded-xl bg-white/5 min-h-[300px] lg:min-h-[400px] backdrop-blur-sm">
+                <div className="h-full flex flex-col items-center justify-center border-2 border-dashed border-slate-800 rounded-xl bg-slate-900/20 min-h-[300px] lg:min-h-[400px]">
                   <Calculator className="w-10 h-10 lg:w-12 lg:h-12 text-slate-700 mb-4 opacity-50" />
                   <p className="text-slate-500 text-xs lg:text-sm font-bold uppercase tracking-widest animate-pulse text-center px-4">Waiting for input...</p>
                 </div>
               ) : (
                 <>
                   {/* 1. Header Details */}
-                  <Card className="bg-white/5 backdrop-blur-md border border-blue-500/30 shadow-2xl overflow-hidden">
-                    <div className="bg-blue-900/10 px-4 lg:px-6 py-4 border-b border-white/10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                  {/* THE FIX: Primary result card styled cleanly with a blue accent border */}
+                  <Card className="bg-slate-900/40 border-blue-500/30 overflow-hidden">
+                    <div className="bg-blue-900/10 px-4 lg:px-6 py-4 border-b border-blue-500/20 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                       <div>
                         <LabelHelp label="Classification" help="Tax category based on asset type and holding period." />
                         <p className="text-2xl lg:text-3xl font-black text-white italic tracking-tighter uppercase">{result.classification}</p>
                       </div>
                       <div className="text-left md:text-right">
                         <LabelHelp label="Holding Period" help="Total days asset was held." />
-                        <p className="text-xl font-bold text-slate-300">{result.holding_days} <span className="text-xs text-slate-500">DAYS</span></p>
+                        <p className="text-xl font-bold text-slate-300 font-mono">{result.holding_days} <span className="text-xs text-slate-500 font-sans">DAYS</span></p>
                       </div>
                     </div>
-                    <div className="px-4 lg:px-6 py-3 bg-black/20 border-b border-white/5">
+                    <div className="px-4 lg:px-6 py-3 bg-[#020617] border-b border-slate-800">
                        <p className="text-[9px] lg:text-[10px] text-slate-400 font-medium italic flex items-start lg:items-center gap-2">
                          <Info className="w-3 h-3 text-blue-500 shrink-0 mt-0.5 lg:mt-0" /> {result.holding_period_rule}
                        </p>
@@ -228,19 +225,19 @@ export default function TaxPage() {
 
                     <CardContent className="p-4 lg:p-6">
                       <div className="grid grid-cols-2 gap-3 lg:gap-4">
-                        <div className="bg-black/20 p-3 lg:p-4 rounded border border-white/10">
+                        <div className="bg-[#020617] p-3 lg:p-4 rounded border border-slate-800">
                           <LabelHelp label="Gross Gain" help="Sale Value - Cost - Expenses" />
                           <p className="text-lg lg:text-xl font-bold font-mono tracking-tighter text-white break-all">₹{result.gain.toLocaleString()}</p>
                         </div>
-                        <div className="bg-black/20 p-3 lg:p-4 rounded border border-white/10">
+                        <div className="bg-[#020617] p-3 lg:p-4 rounded border border-slate-800">
                           <LabelHelp label="Taxable Gain" help="Gross Gain - Exemptions." />
                           <p className="text-lg lg:text-xl font-bold font-mono tracking-tighter text-blue-400 break-all">₹{result.taxable_gain.toLocaleString()}</p>
                         </div>
-                        <div className="bg-black/20 p-3 lg:p-4 rounded border border-white/10">
+                        <div className="bg-[#020617] p-3 lg:p-4 rounded border border-slate-800">
                           <LabelHelp label="Base Rate" help="Applicable tax rate before Surcharge." />
                           <p className="text-lg lg:text-xl font-bold font-mono tracking-tighter text-white">{(result.base_rate * 100).toFixed(2)}%</p>
                         </div>
-                        <div className="bg-black/20 p-3 lg:p-4 rounded border border-white/10">
+                        <div className="bg-[#020617] p-3 lg:p-4 rounded border border-slate-800">
                           <LabelHelp label="Total Tax Due" help="Final liability including Cess." />
                           <p className="text-lg lg:text-xl font-bold font-mono tracking-tighter text-rose-500 break-all">₹{result.total_tax.toLocaleString()}</p>
                         </div>
@@ -249,8 +246,8 @@ export default function TaxPage() {
                   </Card>
 
                   {/* 2. Methodology */}
-                  <Card className="bg-white/5 backdrop-blur-md border border-white/10">
-                    <CardHeader className="py-3 px-4 lg:px-6 border-b border-white/5">
+                  <Card className="bg-slate-900/40 border-slate-800 overflow-hidden">
+                    <CardHeader className="py-3 px-4 lg:px-6 border-b border-slate-800/50">
                       <CardTitle className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Logic Methodology</CardTitle>
                     </CardHeader>
                     <CardContent className="p-4 lg:p-6">
@@ -265,16 +262,16 @@ export default function TaxPage() {
                     </CardContent>
                   </Card>
 
-                  {/* 3. Sensitivity Scenarios (MOBILE FIX: overflow-x-auto for horizontal scroll) */}
-                  <Card className="bg-white/5 backdrop-blur-md border border-white/10 overflow-hidden">
-                    <div className="bg-black/20 py-3 px-4 lg:px-6 border-b border-white/10 flex justify-between items-center">
+                  {/* 3. Sensitivity Scenarios */}
+                  <Card className="bg-slate-900/40 border-slate-800 overflow-hidden">
+                    <div className="bg-[#020617] py-3 px-4 lg:px-6 border-b border-slate-800 flex justify-between items-center">
                       <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest italic">Sensitivity (±10%)</span>
                       <Info className="w-3 h-3 text-slate-600" />
                     </div>
                     <div className="w-full overflow-x-auto dark-scrollbar pb-1">
                       <Table className="min-w-[300px]">
-                        <TableHeader className="bg-white/5">
-                          <TableRow className="border-white/10 hover:bg-transparent">
+                        <TableHeader className="bg-transparent">
+                          <TableRow className="border-slate-800/50 hover:bg-transparent">
                             <TableHead className="text-[9px] font-bold text-slate-500 uppercase h-8 px-4">Shift</TableHead>
                             <TableHead className="text-[9px] font-bold text-slate-500 uppercase h-8 text-right px-4">New Gain</TableHead>
                             <TableHead className="text-[9px] font-bold text-slate-500 uppercase h-8 text-right px-4">Est. Tax</TableHead>
@@ -282,7 +279,7 @@ export default function TaxPage() {
                         </TableHeader>
                         <TableBody>
                           {result.scenario_rows.map((row) => (
-                            <TableRow key={row.label} className="border-white/10 hover:bg-white/5">
+                            <TableRow key={row.label} className="border-slate-800/50 hover:bg-white/5">
                               <TableCell className="font-bold text-blue-400 text-[10px] italic py-2.5 px-4 whitespace-nowrap">{row.label}</TableCell>
                               <TableCell className="text-right text-slate-300 font-mono text-[10px] py-2.5 px-4">₹{row.gain.toLocaleString()}</TableCell>
                               <TableCell className="text-right text-rose-400 font-mono font-bold text-[10px] py-2.5 px-4">₹{row.total_tax.toLocaleString()}</TableCell>
@@ -294,12 +291,12 @@ export default function TaxPage() {
                   </Card>
 
                   {/* 4. Planner */}
-                  <Card className="bg-white/5 backdrop-blur-md border border-white/10 overflow-hidden">
-                    <div className="bg-black/20 py-3 px-4 lg:px-6 border-b border-white/10 flex items-center gap-2">
+                  <Card className="bg-slate-900/40 border-slate-800 overflow-hidden">
+                    <div className="bg-[#020617] py-3 px-4 lg:px-6 border-b border-slate-800 flex items-center gap-2">
                       <TrendingUp className="w-4 h-4 text-emerald-500" />
                       <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Holding Period Planner</span>
                     </div>
-                    <div className="divide-y divide-white/10">
+                    <div className="divide-y divide-slate-800/50">
                       <div className="p-4 lg:px-6 flex flex-col md:flex-row md:justify-between items-start md:items-center gap-2 hover:bg-white/5 transition-colors">
                         <div>
                           <LabelHelp label="Earliest LTCG Date" help="Date asset becomes Long Term." />

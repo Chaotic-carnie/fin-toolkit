@@ -54,15 +54,41 @@ const TEAM = [
 
 export default function AboutPage() {
   return (
-    <div className="h-screen w-full overflow-y-auto overflow-x-hidden dark-scrollbar bg-[#020617] text-white font-sans relative selection:bg-blue-500/30">
+    <div className="h-[calc(100dvh-64px)] w-full overflow-y-auto overflow-x-hidden dark-scrollbar bg-[#020617] text-white font-sans relative isolate selection:bg-blue-500/30">
       
       {/* Background Gradients */}
-      <div className="fixed inset-0 pointer-events-none z-0">
+      <div className="absolute inset-0 pointer-events-none z-[-1] overflow-hidden">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px] bg-blue-600/5 rounded-full blur-[120px]" />
         <div className="absolute bottom-0 right-0 w-[600px] h-[500px] bg-emerald-600/5 rounded-full blur-[100px]" />
       </div>
 
-      <main className="relative z-10 w-full max-w-7xl mx-auto px-4 md:px-6 pt-24 md:pt-32 pb-32">
+      {/* NEW: FLOATING LEGACY BADGE */}
+      {/* fixed bottom-6 left-6 keeps it permanently in the corner, z-50 keeps it clickable */}
+      {/* NEW: FLOATING LEGACY BADGE - HIGH VISIBILITY VERSION */}
+      <a 
+        href="https://peeyush-jha-labs.onrender.com/" 
+        target="_blank" 
+        rel="noopener noreferrer"
+        // THE CHANGES:
+        // 1. Increased padding & darker, more opaque background for contrast.
+        // 2. Added a distinct amber border and a powerful glowing shadow.
+        // 3. Stronger hover lift effect.
+        className="fixed bottom-6 left-4 md:bottom-8 md:left-8 z-50 group flex items-center gap-3 px-4 py-2.5 md:px-5 md:py-3 bg-slate-900/90 backdrop-blur-xl border-2 border-amber-500/30 hover:border-amber-400/80 rounded-full transition-all duration-300 shadow-[0_0_25px_rgba(245,158,11,0.2)] hover:shadow-[0_0_40px_rgba(245,158,11,0.5)] hover:-translate-y-1.5"
+      >
+        <div className="relative flex items-center justify-center w-3 h-3">
+          {/* Stronger, larger ping animation */}
+          <span className="absolute w-full h-full rounded-full bg-amber-400/60 animate-ping opacity-75" />
+          {/* Brighter core dot with its own glow */}
+          <span className="relative w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_15px_rgba(251,191,36,1)]" />
+        </div>
+        {/* Larger, brighter text */}
+        <span className="text-[10px] md:text-xs font-black text-amber-100 group-hover:text-white uppercase tracking-widest transition-colors">
+          V1 Legacy Env
+        </span>
+      </a>
+
+      {/* THE FIX: Reduced the massive 'pt-24 md:pt-32' down to a clean 'pt-8 md:pt-12' because the page now starts exactly where the navbar ends */}
+      <main className="relative z-10 w-full max-w-7xl mx-auto px-4 md:px-6 pt-8 md:pt-12 pb-32">
         
         <motion.div 
           variants={containerVariants} 
@@ -155,7 +181,7 @@ export default function AboutPage() {
                 ))}
              </div>
           </motion.div>
-
+          
         </motion.div>
       </main>
     </div>

@@ -4,8 +4,7 @@ import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAllocationStore } from "@/features/allocation/store";
 import type { AllocationComputeRequest, AllocationComputeResponse } from "@/app/api/docs/schemas";
-import nextDynamic from "next/dynamic";
-import JoyrideTour, { type Step, type CallBackProps, STATUS, ACTIONS, EVENTS } from "react-joyride";
+import { TourProvider, useTour } from '@reactour/tour';
 
 import { 
   Calculator, Layers, Filter, RefreshCw, AlertCircle, Play, TrendingUp, Presentation
@@ -17,9 +16,6 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine
 } from "recharts";
 
-// Forces Next.js to ignore this during the build phase
-const Joyride = nextDynamic(() => import("react-joyride"), { ssr: false });
-
 export const dynamic = "force-dynamic";
 
 const formatMetric = (val: number | null | undefined, isPct: boolean = false, decimals: number = 2): string => {
@@ -30,74 +26,69 @@ const formatMetric = (val: number | null | undefined, isPct: boolean = false, de
 };
 
 // --- Controlled Tour Steps ---
-const TOUR_STEPS: Step[] = [
+const TOUR_STEPS = [
   {
-    target: ".tour-edge-settings",
-    content: "Define your strategy's statistical edge. The engine needs your win rate and average payoff ratio (Win Size / Loss Size) to calculate expected value.",
-    title: "1. Statistical Edge",
-    disableBeacon: true,
+    selector: ".tour-edge-settings",
+    content: () => (
+      <div>
+        <h3 className="font-bold text-sm text-blue-400 mb-1 uppercase tracking-wider">1. Statistical Edge</h3>
+        <p className="text-xs text-slate-300 leading-relaxed">Define your strategy's statistical edge. The engine needs your win rate and average payoff ratio (Win Size / Loss Size) to calculate expected value.</p>
+      </div>
+    ),
   },
   {
-    target: ".tour-capital-settings",
-    content: "Enter your starting bankroll and your 'Ruin Level'. This is the maximum drawdown percentage you are willing to tolerate before halting the strategy.",
-    title: "2. Capital & Risk",
+    selector: ".tour-capital-settings",
+    content: () => (
+      <div>
+        <h3 className="font-bold text-sm text-blue-400 mb-1 uppercase tracking-wider">2. Capital & Risk</h3>
+        <p className="text-xs text-slate-300 leading-relaxed">Enter your starting bankroll and your 'Ruin Level'. This is the maximum drawdown percentage you are willing to tolerate before halting the strategy.</p>
+      </div>
+    ),
   },
   {
-    target: ".tour-run-button",
-    content: "Click this button to run the Monte Carlo simulation. The tour will automatically continue once the computation is complete!",
-    title: "3. Run Simulation",
-    spotlightClicks: true,
-    hideFooter: true,
+    selector: ".tour-run-button",
+    content: () => (
+      <div>
+        <h3 className="font-bold text-sm text-blue-400 mb-1 uppercase tracking-wider">3. Run Simulation</h3>
+        <p className="text-xs text-slate-300 leading-relaxed">Click this button to run the Monte Carlo simulation. The tour will automatically continue once the computation is complete!</p>
+      </div>
+    ),
   },
   {
-    target: ".tour-results",
-    content: "Analyze your results. You'll get your exact optimal Kelly fraction for sizing, your probability of hitting ruin, and a visualization of simulated equity paths.",
-    title: "4. Analyze the Output",
+    selector: ".tour-results",
+    content: () => (
+      <div>
+        <h3 className="font-bold text-sm text-blue-400 mb-1 uppercase tracking-wider">4. Analyze the Output</h3>
+        <p className="text-xs text-slate-300 leading-relaxed">Analyze your results. You'll get your exact optimal Kelly fraction for sizing, your probability of hitting ruin, and a visualization of simulated equity paths.</p>
+      </div>
+    ),
   }
 ];
 
 // --- 1. RENAME MAIN LOGIC COMPONENT (Internal Only) ---
 function AllocationContent() {
   const store = useAllocationStore();
-  // Hooks are safe here because this component is wrapped below
   const searchParams = useSearchParams();
 
-  // --- Controlled Joyride State ---
-  const [runTour, setRunTour] = useState(false);
-  const [stepIndex, setStepIndex] = useState(0);
+  // --- Reactour Hooks ---
+  const { setIsOpen, setCurrentStep, isOpen, currentStep } = useTour();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
     if (searchParams.get("demo") === "true") {
       setTimeout(() => {
-        setStepIndex(0);
-        setRunTour(true);
+        setCurrentStep(0);
+        setIsOpen(true);
       }, 500);
       const newUrl = window.location.pathname;
       window.history.replaceState({}, '', newUrl);
     }
-  }, [searchParams]);
-
-  const handleJoyrideCallback = (data: CallBackProps) => {
-    const { status, type, action, index } = data;
-    if ([STATUS.FINISHED, STATUS.SKIPPED].includes(status as any) || action === ACTIONS.CLOSE) {
-      setRunTour(false);
-      setStepIndex(0);
-      return; 
-    } 
-    if (type === EVENTS.STEP_AFTER) {
-      if (action === ACTIONS.NEXT) {
-        setStepIndex(index + 1);
-      } else if (action === ACTIONS.PREV) {
-        setStepIndex(index - 1);
-      }
-    }
-  };
+  }, [searchParams, setCurrentStep, setIsOpen]);
 
   const startManualDemo = () => {
-    setStepIndex(0);
-    setRunTour(true);
+    setCurrentStep(0);
+    setIsOpen(true);
   };
 
   const handleCompute = async () => {
@@ -130,8 +121,9 @@ function AllocationContent() {
       store.setField("error", err.message);
     } finally {
       store.setField("isLoading", false);
-      if (runTour && stepIndex === 2) {
-        setTimeout(() => setStepIndex(3), 300);
+      // Auto-advance tour after computation finishes
+      if (isOpen && currentStep === 2) {
+        setTimeout(() => setCurrentStep(3), 300);
       }
     }
   };
@@ -151,34 +143,8 @@ function AllocationContent() {
   if (!mounted) return null;
 
   return (
-    <div className="h-full w-full bg-[#020617] text-white flex flex-col overflow-hidden font-sans">
+    <div className="min-h-full lg:h-full w-full bg-[#020617] text-white flex flex-col overflow-hidden font-sans">
       
-      <Joyride
-        callback={handleJoyrideCallback}
-        continuous
-        stepIndex={stepIndex} 
-        run={runTour}
-        disableScrolling={true} 
-        showProgress
-        showSkipButton
-        hideCloseButton={true}
-        steps={TOUR_STEPS}
-        styles={{
-          options: {
-            zIndex: 10000,
-            primaryColor: '#2563eb', 
-            backgroundColor: '#0f172a', 
-            textColor: '#f8fafc', 
-            arrowColor: '#0f172a',
-            overlayColor: 'rgba(0, 0, 0, 0.75)',
-          },
-          tooltipContainer: { textAlign: 'left' },
-          buttonNext: { backgroundColor: '#2563eb', borderRadius: '6px', padding: '8px 16px', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase' },
-          buttonBack: { color: '#94a3b8', marginRight: '10px', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase' },
-          buttonSkip: { color: '#ef4444', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase' }
-        }}
-      />
-
       <div className="shrink-0 px-4 md:px-6 py-4 border-b border-white/5 bg-[#020617] flex flex-col md:flex-row md:justify-between items-start md:items-end gap-2">
         <div>
           <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tighter text-white flex items-center gap-2 md:gap-3">
@@ -335,7 +301,63 @@ function AllocationContent() {
 export default function AllocationPage() {
   return (
     <Suspense fallback={<div className="flex h-screen w-full items-center justify-center bg-[#020617] text-slate-500 font-mono text-sm">LOADING ALLOCATION ENGINE...</div>}>
-      <AllocationContent />
+      <TourProvider 
+        steps={TOUR_STEPS}
+        onClickMask={() => {}} 
+        styles={{
+          popover: (base) => ({
+            ...base,
+            backgroundColor: '#0f172a',
+            color: '#f8fafc',
+            borderRadius: '16px',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8)',
+            padding: '24px'
+          }),
+          maskArea: (base) => ({ ...base, rx: 8 }),
+          badge: (base) => ({ ...base, backgroundColor: '#3b82f6', color: '#ffffff', fontWeight: 'bold' }),
+          close: (base) => ({ ...base, color: '#64748b', right: 16, top: 16 }),
+          dot: (base, state) => ({
+            ...base,
+            backgroundColor: state?.currentStep === state?.index ? '#3b82f6' : '#334155',
+          }),
+          // THE REAL FIX: Reactour uses a single 'button' key for all navigation buttons
+          button: (base, state) => {
+            const isNext = state.kind === 'next';
+            const isPrev = state.kind === 'prev';
+            
+            const style = {
+              ...base,
+              fontSize: '12px',
+              fontWeight: 'bold',
+              textTransform: 'uppercase' as const,
+            };
+
+            if (isNext) {
+              return {
+                ...style,
+                backgroundColor: '#2563eb',
+                borderRadius: '6px',
+                padding: '8px 16px',
+                // Hide 'Next' on Step 3 (index 2)
+                display: state.currentStep === 2 ? 'none' : 'block',
+              };
+            }
+
+            if (isPrev) {
+              return {
+                ...style,
+                color: '#94a3b8',
+                marginRight: '10px',
+              };
+            }
+
+            return style;
+          },
+        }}
+      >
+        <AllocationContent />
+      </TourProvider>
     </Suspense>
   );
 }
