@@ -213,53 +213,60 @@ export default function HomePage() {
         </main>
       </div>
 
-      {/* MAX-VISIBILITY: Clickable Team Badge (No Arrow) */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.0, duration: 0.6 }} className="fixed bottom-4 left-4 md:bottom-6 md:left-6 z-50 pointer-events-auto">
-        <Link 
-          href="/about" 
-          // REMOVED pr-16 so the text naturally fills the box
-          className="group block bg-[#0a0f1c]/95 backdrop-blur-xl border-2 border-blue-500/40 hover:border-blue-400 p-3 lg:p-4 rounded-xl shadow-[0_0_30px_rgba(59,130,246,0.3)] hover:shadow-[0_0_50px_rgba(59,130,246,0.6)] flex flex-col gap-1 pr-4 lg:pr-6 relative overflow-hidden transition-all duration-300 hover:-translate-y-1.5 cursor-pointer"
-        >
-          {/* Intensely glowing side bar */}
-          <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-500 shadow-[0_0_20px_rgba(59,130,246,1)] group-hover:bg-blue-400 group-hover:w-2 transition-all duration-300" />
-          
-          {/* Subtle background pulse on hover */}
-          <div className="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 animate-pulse" />
-          
-          <p className="text-[9px] lg:text-[10px] uppercase tracking-widest font-bold text-slate-400 pl-3 relative z-10 transition-colors group-hover:text-slate-300">
-            Conceptualized by <span className="text-white font-black drop-shadow-md">Peeyush</span>
-          </p>
-          <p className="text-[9px] lg:text-[10px] uppercase tracking-widest font-bold text-slate-400 pl-3 relative z-10 transition-colors group-hover:text-slate-300">
-             Built by <span className="text-blue-400 font-black drop-shadow-[0_0_8px_rgba(59,130,246,0.5)] group-hover:text-blue-300">Peeyush, Naman & Parth</span>
-          </p>
-        </Link>
-      </motion.div>
-      {/* DOCS BADGE: Bottom Right Symmetry (Fixed Routing) */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.1, duration: 0.6 }} className="fixed bottom-4 right-4 md:bottom-6 md:right-6 z-50 pointer-events-auto">
+      {/* BADGES CONTAINER: Handles the overlap fix for mobile, snaps to corners on desktop */}
+      <div className="fixed bottom-4 left-4 right-4 md:bottom-0 md:left-0 md:right-0 z-50 pointer-events-none flex flex-col gap-3 md:block">
         
-        {/* FIX: Swapped <Link> for an <a> tag to force a hard, guaranteed navigation */}
-        <a 
-          href="/docs" 
-          className="group flex items-center gap-3 bg-[#0a0f1c]/95 backdrop-blur-xl border border-slate-700/50 hover:border-slate-400 p-2.5 lg:p-3 rounded-xl shadow-lg hover:shadow-[0_0_25px_rgba(148,163,184,0.15)] transition-all duration-300 hover:-translate-y-1.5 cursor-pointer"
+        {/* TEAM BADGE: Stays Left on Desktop */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }} 
+          animate={{ opacity: 1, y: 0 }} 
+          transition={{ delay: 1.0, duration: 0.6 }} 
+          className="md:absolute md:bottom-6 md:left-6 pointer-events-auto w-full md:w-auto"
         >
-          {/* Subtle icon container */}
-          <div className="bg-slate-800/80 border border-slate-700 p-1.5 rounded-lg group-hover:bg-slate-700 group-hover:border-slate-500 transition-colors relative overflow-hidden">
-             {/* Tiny hover flare inside the icon box */}
-             <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-             <BookOpen className="w-4 h-4 text-slate-400 group-hover:text-white transition-colors relative z-10" />
-          </div>
-          
-          <div className="flex flex-col pr-2">
-            <span className="text-[9px] lg:text-[10px] font-black uppercase tracking-widest text-slate-300 group-hover:text-white transition-colors">
-              Documentation
-            </span>
-            <span className="text-[8px] lg:text-[9px] font-bold uppercase tracking-widest text-slate-500 group-hover:text-slate-400 transition-colors">
-              Engine & API
-            </span>
-          </div>
-        </a>
-        
-      </motion.div>
-    </div>
+          <Link 
+            href="/about" 
+            className="group block bg-[#0a0f1c]/95 backdrop-blur-xl border-2 border-blue-500/40 hover:border-blue-400 p-3 lg:p-4 rounded-xl shadow-[0_0_30px_rgba(59,130,246,0.3)] hover:shadow-[0_0_50px_rgba(59,130,246,0.6)] flex flex-col gap-1 pr-4 lg:pr-6 relative overflow-hidden transition-all duration-300 hover:-translate-y-1.5 cursor-pointer"
+          >
+            <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-500 shadow-[0_0_20px_rgba(59,130,246,1)] group-hover:bg-blue-400 group-hover:w-2 transition-all duration-300" />
+            <div className="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 animate-pulse" />
+            
+            <p className="text-[9px] lg:text-[10px] uppercase tracking-widest font-bold text-slate-400 pl-3 relative z-10 transition-colors group-hover:text-slate-300">
+              Conceptualized by <span className="text-white font-black drop-shadow-md">Peeyush</span>
+            </p>
+            <p className="text-[9px] lg:text-[10px] uppercase tracking-widest font-bold text-slate-400 pl-3 relative z-10 transition-colors group-hover:text-slate-300">
+                Built by <span className="text-blue-400 font-black drop-shadow-[0_0_8px_rgba(59,130,246,0.5)] group-hover:text-blue-300">Peeyush, Naman & Parth</span>
+            </p>
+          </Link>
+        </motion.div>
+
+        {/* DOCS BADGE: Stays Right on Desktop */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }} 
+          animate={{ opacity: 1, y: 0 }} 
+          transition={{ delay: 1.1, duration: 0.6 }} 
+          className="md:absolute md:bottom-6 md:right-6 pointer-events-auto w-full md:w-auto"
+        >
+          <a 
+            href="/docs" 
+            className="group flex items-center gap-3 bg-[#0a0f1c]/95 backdrop-blur-xl border border-slate-700/50 hover:border-slate-400 p-2.5 lg:p-3 rounded-xl shadow-lg hover:shadow-[0_0_25px_rgba(148,163,184,0.15)] transition-all duration-300 hover:-translate-y-1.5 cursor-pointer"
+          >
+            <div className="bg-slate-800/80 border border-slate-700 p-1.5 rounded-lg group-hover:bg-slate-700 group-hover:border-slate-500 transition-colors relative overflow-hidden">
+               <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+               <BookOpen className="w-4 h-4 text-slate-400 group-hover:text-white transition-colors relative z-10" />
+            </div>
+            
+            <div className="flex flex-col pr-2 text-left">
+              <span className="text-[9px] lg:text-[10px] font-black uppercase tracking-widest text-slate-300 group-hover:text-white transition-colors">
+                Documentation
+              </span>
+              <span className="text-[8px] lg:text-[9px] font-bold uppercase tracking-widest text-slate-500 group-hover:text-slate-400 transition-colors">
+                Engine & API
+              </span>
+            </div>
+          </a>
+        </motion.div>
+
+      </div>
+      </div>
   );
 }

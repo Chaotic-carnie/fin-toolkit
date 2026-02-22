@@ -14,24 +14,21 @@ export default function ApiDocs() {
   if (!isMounted) return null;
 
   return (
-    // The outer container takes the exact height of the monitor and pushes down for the navbar
-    <div className="h-screen w-full bg-[#020617] flex flex-col pt-0 pb-10">
-      
-      {/* FIX: Added 'overflow-y-auto'. This explicitly creates a scrollable bounding box for Scalar */}
-      <div className="flex-1 overflow-y-auto w-full relative dark-scrollbar mb-10">
+    // Replaced h-[calc(...)] with flex-1. It automatically fills the layout perfectly.
+    <div className="flex-1 w-full flex flex-col bg-[#020617] overflow-hidden">
+      <div className="flex-1 w-full overflow-y-auto dark-scrollbar">
         <ApiReferenceReact
           configuration={{
-              url: '/api/docs',
+            url: '/api/docs',
             theme: 'kepler',
             darkMode: true,
             hideModels: true, 
             customCss: `
-              .scalar-card { background: #0B1121 !important; border: 1px solid rgba(255,255,255,0.1) !important; }
               .scalar-app { background: #020617 !important; color: white !important; }
+              .scalar-card { background: #0B1121 !important; border: 1px solid rgba(255,255,255,0.1) !important; }
               .sidebar { background: #020617 !important; border-right: 1px solid rgba(255,255,255,0.05) !important; }
-              .scalar-api-client { height: 100% !important; }
-              .section-container { padding-top: 1rem !important; }
               .scalar-app-header { display: none !important; }
+              .scalar-api-client { height: 100% !important; }
             `,
           }}
         />

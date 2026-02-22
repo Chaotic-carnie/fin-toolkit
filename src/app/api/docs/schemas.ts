@@ -33,7 +33,6 @@ export const macroSchemas = {
       createdAt: { type: 'string', format: 'date-time' }
     }
   },
-  // --- NEW: Schema for adding a position via API ---
   MacroPositionInput: {
     type: 'object',
     required: ['name', 'type', 'amount'],
@@ -278,8 +277,6 @@ export const taxSchemas = {
   },
 };
 
-// src/app/api/docs/schemas.ts
-
 export const strategySchemas = {
   StrategyMarketInput: {
     type: 'object',
@@ -367,7 +364,6 @@ export const strategySchemas = {
     },
     required: ['market', 'view', 'legs', 'net_premium']
   },
-
   StrategyScenarioResponse: {
     type: 'object',
     properties: {
@@ -435,7 +431,53 @@ export const CapBudComputeRequestSchema = {
   required: ["discount_rate", "cashflows"]
 } as const;
 
-// Strict TS Interfaces to be used across the entire pipeline
+export const CapBudComputeResponseSchema = {
+  type: "object",
+  properties: {
+    run_id: { type: "string" },
+    project_name: { type: "string" },
+    currency: { type: "string" },
+    discount_rate: { type: "number" },
+    convention: { type: "string" },
+    npv: { type: "number" },
+    irr: { type: "number", nullable: true },
+    irr_candidates: { type: "array", items: { type: "number" } },
+    irr_warning: { type: "string", nullable: true },
+    mirr: { type: "number", nullable: true },
+    profitability_index: { type: "number", nullable: true },
+    payback_period: { type: "number", nullable: true },
+    discounted_payback_period: { type: "number", nullable: true },
+    cashflow_table: {
+      type: "object",
+      properties: {
+        years: { type: "array", items: { type: "number" } },
+        cashflows: { type: "array", items: { type: "number" } },
+        discounted_cashflows: { type: "array", items: { type: "number" } },
+        cumulative_cashflows: { type: "array", items: { type: "number" } },
+        cumulative_discounted_cashflows: { type: "array", items: { type: "number" } }
+      }
+    },
+    npv_profile: {
+      type: "object",
+      properties: {
+        rates: { type: "array", items: { type: "number" } },
+        npvs: { type: "array", items: { type: "number" } }
+      }
+    },
+    sensitivity: {
+      type: "object",
+      properties: {
+        rate_shifts: { type: "array", items: { type: "number" } },
+        scale_shifts: { type: "array", items: { type: "number" } },
+        npv_grid: { type: "array", items: { type: "array", items: { type: "number" } } }
+      }
+    },
+    decision: { type: "string" },
+    notes: { type: "array", items: { type: "string" } }
+  }
+} as const;
+
+// Strict TS Interfaces
 export interface CapBudComputeRequest {
   project_name?: string;
   currency?: string;
@@ -497,7 +539,6 @@ export const AllocationComputeResponseSchema = {
     recommended_alloc_amount: { type: "number" },
     risk_of_ruin_prob: { type: "number" },
     expected_growth_rate: { type: "number" },
-    // We send back a subset of paths to draw a "Spaghetti Chart" on the UI without lagging the main thread
     simulated_paths: { 
       type: "array", 
       items: { type: "array", items: { type: "number" } },
