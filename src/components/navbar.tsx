@@ -11,6 +11,7 @@ const NAV_LINKS = [
   { name: "Strategy", href: "/strategy" },
   { name: "Macro", href: "/macro" },
   { name: "Tax", href: "/tax" },
+  { name: "Composer", href: "/composer" },
   { name: "Scenario", href: "/scenario" },
   { name: "Capital", href: "/capital" },
   { name: "About Us", href: "/about" },
