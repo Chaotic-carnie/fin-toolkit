@@ -30,6 +30,7 @@ const INSTRUMENTS: { key: ComposerInstrument; label: string }[] = [
 
 const BARRIER_TYPES: BarrierType[] = ["up-in", "up-out", "down-in", "down-out"];
 
+
 /**
  * Strategy/Leg Builder
  *
