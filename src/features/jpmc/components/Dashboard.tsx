@@ -568,29 +568,6 @@ export function Dashboard() {
             )}
           </div>
 
-          <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-            <div className="text-[9px] uppercase tracking-widest text-slate-500 font-bold mb-3">
-              Interview talk‑track
-            </div>
-            <ul className="text-[12px] text-slate-400 space-y-3 leading-relaxed">
-              <li>
-                <span className="text-slate-200 font-semibold">Signal fast:</span> size, concentration curve, and top
-                risk drivers.
-              </li>
-              <li>
-                <span className="text-slate-200 font-semibold">Stress in 1 click:</span> deterministic shocks +
-                attribution (what hurts first).
-              </li>
-              <li>
-                <span className="text-slate-200 font-semibold">Two layers:</span> security-level (13F) + firm bucket
-                view (XBRL).
-              </li>
-            </ul>
-
-            <div className="mt-4 text-[11px] text-slate-500">
-              Disclaimer: public disclosures ≠ internal positions; educational use.
-            </div>
-          </div>
         </CardContent>
       </Card>
     </div>

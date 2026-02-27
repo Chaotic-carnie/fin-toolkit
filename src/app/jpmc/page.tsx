@@ -213,95 +213,91 @@ export default function JpmcTrackerPage() {
         </div>
       )}
 
-      {/* FIXED: Added dark-scrollbar to the main vertical scroll area */}
+      {/* Main container scrolling */}
       <div className="flex-1 w-full overflow-y-auto dark-scrollbar bg-[#020617]">
         <div
           ref={containerRef}
           className={`flex flex-col bg-[#020617] text-white font-sans relative ${isExporting ? "w-[1600px] h-auto min-h-screen" : "w-full min-h-screen pt-28 lg:pt-2"}`}
         >
-          <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-500/10 via-transparent to-transparent" />
+          {/* Gradient background securely placed beneath content */}
+          <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-500/10 via-transparent to-transparent z-0" />
 
-          <div className="shrink-0 px-4 lg:px-6 py-4 border-b border-white/5 bg-[#020617] flex flex-col md:flex-row md:justify-between items-start md:items-end gap-3 md:gap-2 relative z-10">
-            <div>
+          {/* Header - Fixed transparency bleeding by ensuring bg-[#020617] and z-20 */}
+          <div className="shrink-0 px-4 lg:px-6 py-4 border-b border-white/5 bg-[#020617] flex flex-col md:flex-row md:justify-between items-start md:items-end gap-4 md:gap-2 relative z-20">
+            <div className="w-full md:w-auto">
               <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tighter text-white flex items-center gap-2 md:gap-3">
                 JPMC <span className="text-blue-600">Portfolio Radar</span>
               </h1>
-              <p className="text-slate-400 text-[9px] md:text-[10px] font-bold uppercase tracking-widest mt-1 ml-1 flex items-center gap-1.5 md:gap-2">
-                <Layers className="w-3 h-3 text-blue-500" /> Public disclosure tracker (13F + SEC XBRL) • Stress pack • Attribution
+              <p className="text-slate-400 text-[9px] md:text-[10px] font-bold uppercase tracking-widest mt-1 ml-1 flex items-center gap-1.5 md:gap-2 flex-wrap">
+                <Layers className="w-3 h-3 text-blue-500 shrink-0" /> Public disclosure tracker (13F + SEC XBRL) • Stress pack • Attribution
               </p>
             </div>
 
-            <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end" data-html2canvas-ignore="true">
+            {/* Buttons - added flex-wrap and sm:flex-nowrap for mobile tightness */}
+            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap w-full md:w-auto justify-start md:justify-end" data-html2canvas-ignore="true">
               <Button
                 variant="outline"
                 size="sm"
-                className="h-7 text-[9px] uppercase font-bold text-emerald-400 border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors"
+                className="h-7 text-[9px] uppercase font-bold text-emerald-400 border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors flex-1 sm:flex-none"
                 onClick={handleExportPDF}
                 disabled={isExporting}
               >
-                <Download className="w-3 h-3 mr-1.5" /> Export Report
+                <Download className="w-3 h-3 mr-1.5 shrink-0" /> <span className="whitespace-nowrap">Export Report</span>
               </Button>
 
               <Button
                 variant="outline"
                 size="sm"
-                className="h-7 text-[9px] uppercase font-bold text-slate-200 border-white/10 bg-white/5 hover:bg-white/10 transition-colors"
+                className="h-7 text-[9px] uppercase font-bold text-slate-200 border-white/10 bg-white/5 hover:bg-white/10 transition-colors flex-1 sm:flex-none"
                 onClick={handleRefresh}
                 disabled={loading.holdings || loading.balanceSheet || isExporting}
               >
-                <RefreshCcw className="w-3 h-3 mr-1.5" /> Refresh
+                <RefreshCcw className="w-3 h-3 mr-1.5 shrink-0" /> <span className="whitespace-nowrap">Refresh</span>
               </Button>
 
-              {/* <Button
-                variant="outline"
-                size="sm"
-                className="h-7 text-[9px] uppercase font-bold text-blue-400 border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 transition-colors"
-                onClick={handleDemo}
-                disabled={isExporting}
-              >
-                <Presentation className="w-3 h-3 mr-1.5" /> Demo
-              </Button> */}
-
-              <span className="text-[10px] font-mono text-slate-600 bg-white/5 px-2 py-1 rounded border border-white/5 hidden md:block">
+              <span className="text-[10px] font-mono text-slate-600 bg-white/5 px-2 py-1 rounded border border-white/5 hidden sm:block whitespace-nowrap">
                 {reportDate ? `AS OF ${reportDate}` : "SEC FEED"}
               </span>
             </div>
           </div>
 
+          {/* Notices - Also protected with relative z-20 */}
           {notice && !isExporting && (
-            <div className="shrink-0 px-4 lg:px-6 py-2 border-b border-amber-500/20 bg-amber-500/10 text-amber-200 text-[11px] font-mono flex items-center gap-2 relative z-10">
-              <ShieldAlert className="w-4 h-4" /> {notice}
+            <div className="shrink-0 px-4 lg:px-6 py-2 border-b border-amber-500/20 bg-amber-500/10 text-amber-200 text-[11px] font-mono flex items-center gap-2 relative z-20">
+              <ShieldAlert className="w-4 h-4 shrink-0" /> {notice}
             </div>
           )}
           {error && !isExporting && (
-            <div className="shrink-0 px-4 lg:px-6 py-2 border-b border-rose-500/20 bg-rose-500/10 text-rose-200 text-[11px] font-mono flex items-center gap-2 relative z-10">
-              <ShieldAlert className="w-4 h-4" /> {error}
+            <div className="shrink-0 px-4 lg:px-6 py-2 border-b border-rose-500/20 bg-rose-500/10 text-rose-200 text-[11px] font-mono flex items-center gap-2 relative z-20">
+              <ShieldAlert className="w-4 h-4 shrink-0" /> {error}
             </div>
           )}
 
-          <div className="shrink-0 w-full overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden relative z-10">
+          {/* Banner Container - Added bg-[#020617] to ensure scrolling items don't bleed through on mobile */}
+          <div className="shrink-0 w-full overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden relative z-20 bg-[#020617]">
             <JpmcStatsBanner />
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0 relative z-10">
-            <div className="shrink-0 px-4 lg:px-6 border-b border-white/10 bg-transparent overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden">
+            {/* Tabs List Wrapper - Changed from bg-transparent to bg-[#020617] to fix the mobile transparency bleed */}
+            <div className="shrink-0 px-4 lg:px-6 border-b border-white/10 bg-[#020617] relative z-20 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden">
               <TabsList className="bg-transparent h-auto p-0 gap-2 md:gap-6 justify-start w-max">
                 <TabsTrigger value="dashboard" className={tabTriggerClasses}>
-                  <LayoutDashboard className="w-4 h-4" /> Dashboard
+                  <LayoutDashboard className="w-4 h-4 shrink-0" /> Dashboard
                 </TabsTrigger>
                 <TabsTrigger value="holdings" className={tabTriggerClasses}>
-                  <Table2 className="w-4 h-4" /> Holdings
+                  <Table2 className="w-4 h-4 shrink-0" /> Holdings
                 </TabsTrigger>
                 <TabsTrigger value="scenario" className={tabTriggerClasses}>
-                  <Flame className="w-4 h-4" /> Scenario Lab
+                  <Flame className="w-4 h-4 shrink-0" /> Scenario Lab
                 </TabsTrigger>
                 <TabsTrigger value="balance" className={tabTriggerClasses}>
-                  <Banknote className="w-4 h-4" /> Balance Sheet
+                  <Banknote className="w-4 h-4 shrink-0" /> Balance Sheet
                 </TabsTrigger>
               </TabsList>
             </div>
 
-            <div className="flex-1 p-4 lg:p-6 pb-28 js-print-scroll">
+            <div className="flex-1 p-4 lg:p-6 pb-28 js-print-scroll relative z-10">
               <div className="max-w-[1800px] mx-auto">
                 <TabsContent value="dashboard" className="m-0 border-none outline-none">
                   <Dashboard />
@@ -319,9 +315,6 @@ export default function JpmcTrackerPage() {
             </div>
           </Tabs>
 
-          <div className="shrink-0 px-4 lg:px-6 py-3 border-t border-white/5 bg-[#020617] text-[11px] text-slate-500 font-mono relative z-10 mt-auto">
-            Public disclosures only • 13F is quarterly/delayed • XBRL tags are best-effort • For education & interviews
-          </div>
         </div>
       </div>
     </>
